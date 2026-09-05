@@ -1,5 +1,18 @@
 plugins { id "com.android.application" }
 
+// A tagged release passes its version in (-PappVersionName=1.2.3); a plain
+// local build just gets 1.0. versionCode has to rise with every release
+// Android is asked to install over the last one, so it is derived from the
+// tag rather than typed: 1.2.3 -> 10203.
+def vName = (project.findProperty("appVersionName") ?: "1.0").toString()
+def vCode = (project.findProperty("appVersionCode") ?: "1").toString().toInteger()
+
+// Release signing comes from the environment, so the key itself never lands
+// in the repository. Without it there is nothing to sign a release with, and
+// the build says so rather than quietly producing an unsignable APK.
+def ksPath = System.getenv("ANDROID_KEYSTORE_PATH")
+def hasKeystore = ksPath != null && !ksPath.isEmpty() && file(ksPath).exists()
+
 android {
     namespace "com.bondedstore"
     compileSdk 34
@@ -8,18 +21,34 @@ android {
         applicationId "com.bondedstore"
         minSdk 24                 // Android 7 — old ship phones still run this
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode vCode
+        versionName vName
     }
 
     // The web app is the single source of truth in ../../app. Copy it in at
     // build time rather than keeping a second copy under version control.
     sourceSets.main.assets.srcDirs += "$buildDir/webassets"
 
+    signingConfigs {
+        release {
+            if (hasKeystore) {
+                storeFile file(ksPath)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.debug   // debug-signed: sideloaded, not Play-listed
+            // The signature is the app's identity: Android will only install an
+            // update over an APK signed by the same key. Sign every release with
+            // the one keystore and an update installs over the top, keeping the
+            // ledger. Fall back to the debug key only so an unconfigured repo
+            // still builds — those APKs cannot upgrade each other.
+            signingConfig hasKeystore ? signingConfigs.release : signingConfigs.debug
         }
     }
     compileOptions {

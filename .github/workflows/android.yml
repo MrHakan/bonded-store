@@ -1,11 +1,18 @@
 name: Build APK
 
+# Every push builds and checks the APK. Pushing a version tag also publishes
+# it as a GitHub release:
+#
+#     git tag v1.2.3 && git push origin v1.2.3
+#
 on:
   push:
     branches: ["**"]
+    tags: ["v*"]
   workflow_dispatch:
-  release:
-    types: [published]
+
+permissions:
+  contents: write          # needed to create the release on a tag
 
 jobs:
   apk:
@@ -20,24 +27,102 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
-      - name: Build debug APK
-        working-directory: android
-        run: gradle --no-daemon assembleDebug
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
 
-      - name: Check the web app really made it into the APK
+      - name: Install the SDK pieces the build needs
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      # v1.2.3 -> name 1.2.3, code 10203. versionCode must rise with every
+      # release, or Android refuses to install the newer APK over the older.
+      - name: Work out the version
+        id: v
         run: |
-          unzip -p android/app/build/outputs/apk/debug/app-debug.apk assets/www/index.html \
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            NAME="${GITHUB_REF_NAME#v}"
+          else
+            NAME="0.0.0-$(git rev-parse --short HEAD)"
+          fi
+          CORE="${NAME%%-*}"
+          IFS=. read -r MAJ MIN PAT <<< "$CORE"
+          CODE=$(( ${MAJ:-0} * 10000 + ${MIN:-0} * 100 + ${PAT:-0} ))
+          if [ "$CODE" -lt 1 ]; then CODE=1; fi
+          echo "name=$NAME"  >> "$GITHUB_OUTPUT"
+          echo "code=$CODE"  >> "$GITHUB_OUTPUT"
+          echo "Version $NAME (versionCode $CODE)"
+
+      # The signing key lives in repository secrets, never in the repository.
+      # Without it the build still works, but falls back to the debug key.
+      - name: Restore the signing key
+        id: key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret — falling back to the debug key. APKs signed this way cannot be installed over each other, so updating means uninstalling, which erases the store's ledger. See the README."
+          fi
+
+      - name: Build release APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ steps.key.outputs.signed == 'true' && format('{0}/release.jks', runner.temp) || '' }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          gradle --no-daemon assembleRelease \
+            -PappVersionName=${{ steps.v.outputs.name }} \
+            -PappVersionCode=${{ steps.v.outputs.code }}
+
+      - name: Name the APK after its version
+        id: apk
+        run: |
+          SRC=android/app/build/outputs/apk/release/app-release.apk
+          OUT="bonded-store-${{ steps.v.outputs.name }}.apk"
+          mv "$SRC" "$OUT"
+          echo "path=$OUT" >> "$GITHUB_OUTPUT"
+
+      # The APK is only useful if the page inside it is the page in this repo,
+      # and only installable if it is actually signed.
+      - name: Verify the APK
+        run: |
+          unzip -p "${{ steps.apk.outputs.path }}" assets/www/index.html \
             | sha256sum | cut -d' ' -f1 > packaged.sha
           sha256sum app/index.html | cut -d' ' -f1 > source.sha
-          diff packaged.sha source.sha
+          diff packaged.sha source.sha || { echo "::error::The packaged page does not match app/index.html"; exit 1; }
+
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/apksigner" verify --print-certs "${{ steps.apk.outputs.path }}"
+
+          BADGING=$("$BT/aapt2" dump badging "${{ steps.apk.outputs.path }}" | head -1)
+          echo "$BADGING"
+          echo "$BADGING" | grep -q "versionName='${{ steps.v.outputs.name }}'" \
+            || { echo "::error::APK version does not match the tag"; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:
           name: bonded-store-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ steps.apk.outputs.path }}
 
-      - name: Attach to release
-        if: github.event_name == 'release'
+      - name: Publish the release
+        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+          name: Bonded Store ${{ steps.v.outputs.name }}
+          files: ${{ steps.apk.outputs.path }}
+          generate_release_notes: true
+          body: |
+            **Install:** download `${{ steps.apk.outputs.path }}` onto the phone and open it.
+            Android will ask you to allow installing from that source.
+
+            Android 7.0 or newer. Camera permission is used only for reading a
+            product's QR label; the app has no internet permission.
+
+            ${{ steps.key.outputs.signed == 'true'
+              && 'This build is signed with the project release key, so it installs straight over an earlier version and the store''s ledger is kept.'
+              || '**⚠ Debug-signed build.** No signing key is configured, so this APK cannot be installed over an earlier version — you would have to uninstall first, which erases the ledger. Take a backup (Report → Backup / restore) before updating, and see the README to set up signing.' }}

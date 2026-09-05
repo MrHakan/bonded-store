@@ -84,23 +84,71 @@ rank, product, code, quantity, unit price, amount — plus the account summary.
 **Backup / restore** writes the whole database as JSON, and restores from
 pasted backup text. Both go through the Android share sheet.
 
-## Building the APK
+## Releasing a new version
 
-The APK is built by GitHub Actions on every push: **Actions → Build APK →
-`bonded-store-apk`**. Publish a release and it is attached to that release too.
+Push a version tag and GitHub Actions builds the APK, publishes the release and
+attaches it:
 
-Locally, with the Android SDK installed:
+```sh
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+The tag sets the version: `v1.2.3` becomes versionName `1.2.3` and versionCode
+`10203` (`major×10000 + minor×100 + patch`). versionCode has to increase with
+every release or Android refuses to install the newer APK over the older one, so
+tag in order and never re-use a tag.
+
+Every ordinary push builds and checks an APK too — **Actions → Build APK →
+`bonded-store-apk`** — it is just not published.
+
+Each build verifies that the page inside the APK is byte-for-byte `app/index.html`,
+that the APK is signed, and that its version matches the tag. Any of those
+failing fails the build.
+
+### Set up the signing key first — once
+
+**An APK can only be installed over one signed with the same key.** Without a
+stable key every release gets a fresh throwaway signature, so updating means
+uninstalling first — and uninstalling erases the store's ledger. Five minutes
+now avoids that forever.
+
+Make the key and keep it somewhere safe (losing it means no more in-place
+updates, ever):
+
+```sh
+keytool -genkeypair -v -keystore bonded-store.jks -alias bondedstore \
+  -keyalg RSA -keysize 2048 -validity 10000
+base64 -w0 bonded-store.jks       # macOS: base64 -i bonded-store.jks
+```
+
+Then add four repository secrets under **Settings → Secrets and variables →
+Actions**:
+
+| Secret | Value |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | the base64 output above |
+| `ANDROID_KEYSTORE_PASSWORD` | the store password you chose |
+| `ANDROID_KEY_ALIAS` | `bondedstore` |
+| `ANDROID_KEY_PASSWORD` | the key password you chose |
+
+Never commit `bonded-store.jks` — this repository is public. Until the secrets
+exist the workflow still builds, but it warns, and the release notes say the APK
+is debug-signed and cannot upgrade an earlier install.
+
+## Building it yourself
+
+With the Android SDK installed:
 
 ```sh
 cd android
-gradle assembleDebug        # -> app/build/outputs/apk/debug/app-debug.apk
+gradle assembleRelease      # -> app/build/outputs/apk/release/app-release.apk
 ```
 
-Install with `adb install -r app-debug.apk`, or copy the file to the phone and
-open it (Android will ask you to allow installing from that source).
-
-The APK is debug-signed for sideloading, not for Play. To publish, add a real
-`signingConfig` in `android/app/build.gradle`.
+Install with `adb install -r app-release.apk`, or copy the file to the phone and
+open it (Android will ask you to allow installing from that source). Add
+`-PappVersionName=1.2.3 -PappVersionCode=10203` to stamp a version; without a
+keystore in the environment the build falls back to the debug key.
 
 ## Layout
 
