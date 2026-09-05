@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The web app paints its own chrome; the shell just has to not flash white. -->
+    <style name="AppTheme" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/abyss</item>
+        <item name="android:statusBarColor">@color/hull</item>
+        <item name="android:navigationBarColor">@color/hull</item>
+    </style>
+</resources>

@@ -1,0 +1,40 @@
+plugins { id "com.android.application" }
+
+android {
+    namespace "com.bondedstore"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.bondedstore"
+        minSdk 24                 // Android 7 — old ship phones still run this
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    // The web app is the single source of truth in ../../app. Copy it in at
+    // build time rather than keeping a second copy under version control.
+    sourceSets.main.assets.srcDirs += "$buildDir/webassets"
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug   // debug-signed: sideloaded, not Play-listed
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+tasks.register("copyWebApp", Copy) {
+    from rootProject.file("../app")
+    into "$buildDir/webassets/www"
+}
+tasks.named("preBuild") { dependsOn "copyWebApp" }
+
+dependencies {
+    implementation "androidx.webkit:webkit:1.11.0"
+    implementation "androidx.core:core:1.13.1"
+}

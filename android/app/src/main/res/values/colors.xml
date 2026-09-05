@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="abyss">#06121C</color>
+    <color name="hull">#0A1A26</color>
+    <color name="signal">#FFB000</color>
+</resources>

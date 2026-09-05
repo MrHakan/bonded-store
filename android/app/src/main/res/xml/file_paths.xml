@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Exports and backups land here and are handed out through the share sheet. -->
+    <files-path name="exports" path="exports/" />
+</paths>
