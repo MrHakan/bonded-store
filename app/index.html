@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#06121C">
+<title>Bonded Store</title>
+<style>
+/* ============================================================
+   BONDED STORE TRACKER — phone first.
+   One screen does one job. Numbers big, chrome small.
+   No fonts, no libraries, no network: this runs offline on a ship.
+   ============================================================ */
+:root{
+  --abyss:#06121C; --hull:#0E2231; --deck:#16344A; --line:#1c3a4f;
+  --fog:#90abc0; --dim:#5d7a90; --foam:#e9f2f8;
+  --signal:#ffb000; --green:#26d177; --red:#ff5252;
+  --r:12px;
+  --mono:ui-monospace,"SF Mono",Consolas,monospace;
+  --pad:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  background:var(--abyss);color:var(--foam);overscroll-behavior:none;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select{font:inherit;color:inherit}
+::selection{background:var(--signal);color:#1a1200}
+
+/* ---------- frame ---------- */
+#top{
+  position:sticky;top:0;z-index:5;padding:14px 16px 12px;
+  background:linear-gradient(180deg,#0E2231,#0a1a26);border-bottom:1px solid var(--line);
+}
+#top h1{font-size:19px;font-weight:700;letter-spacing:.02em}
+#top h1 b{color:var(--signal);font-weight:700}
+#top .sub{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-top:3px}
+#scr{padding:16px 16px 24px}
+#nav{
+  position:sticky;bottom:0;z-index:5;display:grid;grid-template-columns:repeat(4,1fr);
+  background:#0a1a26;border-top:1px solid var(--line);padding-bottom:var(--pad);
+}
+#nav button{padding:10px 4px 12px;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--dim)}
+#nav button svg{width:22px;height:22px}
+#nav button span{font-size:10.5px;letter-spacing:.06em}
+#nav button.on{color:var(--signal)}
+main{min-height:calc(100vh - 190px)}
+
+/* ---------- pieces ---------- */
+.card{background:var(--hull);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:14px}
+label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+.in{
+  width:100%;background:var(--abyss);border:1px solid var(--line);border-radius:10px;
+  padding:13px;color:var(--foam);font-size:16px;
+}
+.in:focus{outline:none;border-color:var(--signal)}
+select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--fog) 50%),linear-gradient(135deg,var(--fog) 50%,transparent 50%);background-position:calc(100% - 18px) 52%,calc(100% - 13px) 52%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:38px}
+.btn{display:block;width:100%;border-radius:11px;padding:15px;font-size:16px;font-weight:700;background:var(--signal);color:#1a1200;text-align:center;margin-top:12px}
+.btn.sec{background:var(--deck);color:var(--foam);border:1px solid var(--line);font-weight:600}
+.btn.red{background:#2a1414;color:var(--red);border:1px solid #47201f}
+.btn:disabled{opacity:.4}
+.row{display:flex;gap:10px;align-items:flex-end}
+.step{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--abyss)}
+.step button{width:46px;height:50px;font-size:24px;background:var(--deck)}
+.step input{flex:1;min-width:0;border:none;background:none;text-align:center;font:600 18px var(--mono);color:var(--foam)}
+.step input:focus{outline:none}
+
+/* three numbers, nothing else */
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.tile{background:var(--hull);border:1px solid var(--line);border-radius:var(--r);padding:11px 10px}
+.tile .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);line-height:1.25;min-height:21px}
+.tile .v{font:700 19px/1.1 var(--mono);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .v.g{color:var(--green)} .tile .v.a{color:var(--signal)} .tile .v.r{color:var(--red)}
+
+/* list rows */
+.list{margin:0 -14px}
+.item{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid #16313f;width:100%;text-align:left}
+.item:first-child{border-top:none}
+.item .m{flex:1;min-width:0}
+/* a <button> lays its children out in an anonymous centring box; block puts
+   the chip back inline with the name instead of stretching it full width */
+button.m{display:block;width:100%;text-align:left;padding:0}
+.item .m b{display:block;font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .m span{display:block;font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:2px}
+.item .amt{font:600 14px var(--mono);color:var(--green);white-space:nowrap}
+.item .amt.z{color:var(--dim)}
+.item .amt.a{color:var(--signal)}
+.item .x{width:36px;height:36px;flex:none;border-radius:9px;background:#2a1414;color:var(--red);font-size:15px}
+.item.off b{color:var(--red);font-style:italic}
+.item.off{opacity:.65}
+/* beats `.item .m span`, which would otherwise stack the chip above the name */
+.item .m b .chip,.chip{display:inline-block;font:500 9.5px/1.6 var(--mono);letter-spacing:.05em;padding:0 6px;border-radius:4px;background:var(--deck);color:var(--signal);border:1px solid var(--line);margin-right:6px}
+.qr-btn{width:38px;height:38px;flex:none;border-radius:9px;border:1px solid var(--line);background:var(--deck);display:grid;place-items:center}
+.qr-btn svg{width:19px;height:19px;color:var(--fog)}
+.sq{width:52px;height:50px;flex:none;border-radius:10px;background:var(--signal);color:#1a1200;font-size:26px;font-weight:700}
+.mv{flex:none;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--deck);
+    font:600 10.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--signal)}
+.mv.back{color:var(--fog)}
+.hd{display:flex;justify-content:space-between;align-items:center;margin:16px 0 2px;
+    font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.hd button{font:inherit;letter-spacing:.14em;text-transform:uppercase;color:var(--signal)}
+.carry{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;
+  background:var(--hull);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;
+  font-size:12.5px;color:var(--fog)}
+.carry b{font-family:var(--mono);color:var(--foam);font-weight:600}
+.carry .go{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:var(--signal);white-space:nowrap}
+.empty{padding:34px 10px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12.5px;line-height:1.7}
+.tot{display:flex;justify-content:space-between;padding:13px 0 2px;margin-top:6px;border-top:2px solid #27506b;font-weight:700}
+.tot b{font-family:var(--mono);color:var(--green)}
+.sec-t{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:2px 0 10px}
+
+/* sheet */
+#sheet{position:fixed;inset:0;z-index:20;background:rgba(3,9,14,.7);display:none;align-items:flex-end}
+#sheet.open{display:flex}
+#sheet .box{
+  width:100%;max-height:92vh;overflow-y:auto;background:var(--hull);
+  border-top:1px solid var(--line);border-radius:16px 16px 0 0;padding:18px 16px calc(20px + var(--pad));
+}
+#sheet h2{font-size:18px;font-weight:700;margin-bottom:4px}
+#sheet .h-sub{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-bottom:16px}
+.f{margin-bottom:12px}
+#toast{
+  position:fixed;left:50%;bottom:calc(78px + var(--pad));transform:translate(-50%,14px);z-index:40;
+  background:var(--deck);border:1px solid #27506b;border-radius:10px;padding:11px 17px;
+  font-family:var(--mono);font-size:12.5px;opacity:0;pointer-events:none;transition:.22s;max-width:90vw;text-align:center;
+}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* QR */
+.qr-wrap{background:#fff;border-radius:12px;padding:16px;display:grid;place-items:center}
+.qr-wrap canvas{display:block;width:100%;height:auto;max-width:280px;image-rendering:pixelated}
+.qr-cap{text-align:center;margin-top:12px}
+.qr-cap b{display:block;font-size:16px}
+.qr-cap span{font-family:var(--mono);font-size:12px;color:var(--dim)}
+
+/* scanner */
+#scan{position:fixed;inset:0;z-index:30;background:#000;display:none;flex-direction:column}
+#scan.open{display:flex}
+#scan video{flex:1;width:100%;object-fit:cover}
+#scan .bar{padding:14px 16px calc(14px + var(--pad));background:#0a1a26;border-top:1px solid var(--line)}
+#scan .hint{text-align:center;font-family:var(--mono);font-size:12px;color:var(--fog);padding:10px}
+
+/* labels sheet (print) */
+.labels{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.label{background:#fff;color:#000;border-radius:8px;padding:10px;text-align:center;break-inside:avoid}
+.label canvas{width:100%;max-width:120px;height:auto;image-rendering:pixelated}
+.label .n{font-size:10px;font-weight:700;margin-top:5px;line-height:1.2;word-break:break-word}
+.label .c{font-family:var(--mono);font-size:9px;color:#555}
+@media print{
+  body{background:#fff}
+  #top,#nav,#sheet .btn,.no-print{display:none!important}
+  #sheet{position:static;background:none;display:block}
+  #sheet .box{max-height:none;background:#fff;border:none;padding:0}
+  .labels{grid-template-columns:repeat(4,1fr)}
+}
+</style>
+</head>
+<body>
+
+<header id="top">
+  <h1>BONDED <b>STORE</b></h1>
+  <div class="sub" id="topSub">Sell</div>
+</header>
+
+<main id="scr"></main>
+
+<nav id="nav">
+  <button data-v="sell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h12l1 5H5z"/><path d="M5 7h14v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M9 11a3 3 0 0 0 6 0"/></svg><span>Sell</span></button>
+  <button data-v="stock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M3 11h18M8 7V4h8v3"/></svg><span>Stock</span></button>
+  <button data-v="people"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5.5a3 3 0 0 1 0 5M17 20a5.6 5.6 0 0 0-2-4.3"/></svg><span>People</span></button>
+  <button data-v="report"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span>Report</span></button>
+</nav>
+
+<div id="sheet"><div class="box" id="sheetBox"></div></div>
+
+<div id="scan">
+  <video id="scanVid" playsinline muted></video>
+  <div class="hint">Point the camera at a product label</div>
+  <div class="bar"><button class="btn sec" onclick="stopScan()">Cancel</button></div>
+</div>
+
+<div id="toast"></div>
+<script>
+"use strict";
+
+/* ============================================================ QR ENCODER
+   Byte mode, error-correction level M, versions 1-10 (max 216 bytes).
+   Self-contained: the ship PC has no internet, so no CDN, no library. */
+const QR = (() => {
+  /* GF(256), primitive polynomial x^8+x^4+x^3+x^2+1 (0x11D) */
+  const EXP = new Uint8Array(512), LOG = new Uint8Array(256);
+  for (let i = 0, x = 1; i < 255; i++) { EXP[i] = x; LOG[x] = i; x <<= 1; if (x & 0x100) x ^= 0x11D; }
+  for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
+  const mul = (a, b) => (a === 0 || b === 0) ? 0 : EXP[LOG[a] + LOG[b]];
+
+  /* [ecPerBlock, blocks1, dataPerBlock1, blocks2, dataPerBlock2] for level M */
+  const SPEC = [
+    null,
+    [10, 1, 16, 0, 0], [16, 1, 28, 0, 0], [26, 1, 44, 0, 0], [18, 2, 32, 0, 0], [24, 2, 43, 0, 0],
+    [16, 4, 27, 0, 0], [18, 4, 31, 0, 0], [22, 2, 38, 2, 39], [22, 3, 36, 2, 37], [26, 4, 43, 1, 44]
+  ];
+  const ALIGN = [null, [], [6,18], [6,22], [6,26], [6,30], [6,34], [6,22,38], [6,24,42], [6,26,46], [6,28,50]];
+  const dataCw = v => SPEC[v][1] * SPEC[v][2] + SPEC[v][3] * SPEC[v][4];
+  const REMAINDER = [0,0,7,7,7,7,7,0,0,0,0];
+  const bit = (x, i) => (x >>> i) & 1;
+
+  function rsGen(deg) {
+    let g = [1];
+    for (let i = 0; i < deg; i++) {
+      const n = new Array(g.length + 1).fill(0);
+      for (let j = 0; j < g.length; j++) { n[j] ^= g[j]; n[j + 1] ^= mul(g[j], EXP[i]); }
+      g = n;
+    }
+    return g;
+  }
+  function rsRemainder(data, deg) {
+    const g = rsGen(deg), res = new Uint8Array(deg);
+    for (const d of data) {
+      const factor = d ^ res[0];
+      res.copyWithin(0, 1); res[deg - 1] = 0;
+      if (factor !== 0) for (let j = 0; j < deg; j++) res[j] ^= mul(g[j + 1], factor);
+    }
+    return res;
+  }
+
+  function utf8(str) {
+    const out = [];
+    for (const ch of str) {
+      let c = ch.codePointAt(0);
+      if (c < 0x80) out.push(c);
+      else if (c < 0x800) out.push(0xC0 | c >> 6, 0x80 | c & 63);
+      else if (c < 0x10000) out.push(0xE0 | c >> 12, 0x80 | (c >> 6) & 63, 0x80 | c & 63);
+      else out.push(0xF0 | c >> 18, 0x80 | (c >> 12) & 63, 0x80 | (c >> 6) & 63, 0x80 | c & 63);
+    }
+    return out;
+  }
+
+  function pickVersion(len) {
+    for (let v = 1; v <= 10; v++) {
+      const cci = v < 10 ? 8 : 16;
+      if (4 + cci + len * 8 <= dataCw(v) * 8) return v;
+    }
+    throw new Error("QR payload too long (max 216 bytes)");
+  }
+
+  function codewords(bytes, ver) {
+    const cci = ver < 10 ? 8 : 16, cap = dataCw(ver) * 8, bits = [];
+    const push = (val, n) => { for (let i = n - 1; i >= 0; i--) bits.push(bit(val, i)); };
+    push(4, 4); push(bytes.length, cci);
+    for (const b of bytes) push(b, 8);
+    push(0, Math.min(4, cap - bits.length));
+    push(0, (8 - bits.length % 8) % 8);
+    for (let pad = 0xEC; bits.length < cap; pad ^= 0xEC ^ 0x11) push(pad, 8);
+    const cw = new Uint8Array(bits.length / 8);
+    bits.forEach((b, i) => { if (b) cw[i >>> 3] |= 0x80 >>> (i & 7); });
+
+    /* split into blocks, append RS ECC, interleave */
+    const [ec, n1, d1, n2, d2] = SPEC[ver], blocks = [], eccs = [];
+    let off = 0;
+    for (let i = 0; i < n1 + n2; i++) {
+      const len = i < n1 ? d1 : d2, blk = cw.subarray(off, off + len);
+      off += len; blocks.push(blk); eccs.push(rsRemainder(blk, ec));
+    }
+    const out = [];
+    for (let i = 0; i < Math.max(d1, d2); i++) for (const b of blocks) if (i < b.length) out.push(b[i]);
+    for (let i = 0; i < ec; i++) for (const e of eccs) out.push(e[i]);
+    return out;
+  }
+
+  function build(ver, data) {
+    const size = ver * 4 + 17;
+    const mods = new Uint8Array(size * size), fn = new Uint8Array(size * size);
+    const set = (x, y, v) => { mods[y * size + x] = v; fn[y * size + x] = 1; };
+
+    /* finder patterns + separators */
+    for (const [cx, cy] of [[3, 3], [size - 4, 3], [3, size - 4]])
+      for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+        const x = cx + dx, y = cy + dy, d = Math.max(Math.abs(dx), Math.abs(dy));
+        if (x >= 0 && x < size && y >= 0 && y < size) set(x, y, (d !== 2 && d <= 3) ? 1 : 0);
+      }
+    /* timing patterns */
+    for (let i = 8; i < size - 8; i++) { const v = i % 2 === 0 ? 1 : 0; set(6, i, v); set(i, 6, v); }
+    /* alignment patterns */
+    const ap = ALIGN[ver];
+    for (const cy of ap) for (const cx of ap) {
+      if ((cx === 6 && cy === 6) || (cx === 6 && cy === size - 7) || (cx === size - 7 && cy === 6)) continue;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++)
+        set(cx + dx, cy + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1 ? 1 : 0);
+    }
+    /* reserve format + version areas (values written after masking) */
+    for (const [x, y] of formatCells(size)) set(x, y, 0);
+    set(8, size - 8, 1);
+    if (ver >= 7) for (let i = 0; i < 18; i++) { const a = size - 11 + i % 3, b = Math.floor(i / 3); set(a, b, 0); set(b, a, 0); }
+
+    /* data placement — upward/downward zigzag, two columns at a time */
+    let i = 0;
+    for (let right = size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (let vert = 0; vert < size; vert++) for (let j = 0; j < 2; j++) {
+        const x = right - j, up = ((right + 1) & 2) === 0, y = up ? size - 1 - vert : vert;
+        if (!fn[y * size + x] && i < data.length * 8) { mods[y * size + x] = bit(data[i >>> 3], 7 - (i & 7)); i++; }
+      }
+    }
+    return { size, mods, fn };
+  }
+
+  function applyMask(mods, fn, size, m) {
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      if (fn[y * size + x]) continue;
+      let inv;
+      switch (m) {
+        case 0: inv = (x + y) % 2 === 0; break;
+        case 1: inv = y % 2 === 0; break;
+        case 2: inv = x % 3 === 0; break;
+        case 3: inv = (x + y) % 3 === 0; break;
+        case 4: inv = (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0; break;
+        case 5: inv = (x * y) % 2 + (x * y) % 3 === 0; break;
+        case 6: inv = ((x * y) % 2 + (x * y) % 3) % 2 === 0; break;
+        default: inv = ((x + y) % 2 + (x * y) % 3) % 2 === 0;
+      }
+      if (inv) mods[y * size + x] ^= 1;
+    }
+  }
+
+  /* The 30 format-info cells: bit i lives at index i (top-left copy) and i+15
+     (the second copy). Used both to reserve the area before data placement and
+     to write it after masking — one source of truth, so the two cannot drift. */
+  /* (was: The 15 format-info cells, in bit order, for each of the two copies. Used both
+  */
+  function formatCells(size) {
+    const a = [], b = [];
+    for (let i = 0; i <= 5; i++) a.push([8, i]);
+    a.push([8, 7], [8, 8], [7, 8]);
+    for (let i = 9; i < 15; i++) a.push([14 - i, 8]);
+    for (let i = 0; i < 8; i++) b.push([size - 1 - i, 8]);
+    for (let i = 8; i < 15; i++) b.push([8, size - 15 + i]);
+    return a.concat(b);
+  }
+
+  function drawFormat(mods, size, mask) {
+    const data = 0 << 3 | mask;         /* level M = 0b00 */
+    let rem = data;
+    for (let i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+    const bits = ((data << 10 | rem) ^ 0x5412) >>> 0;
+    const cells = formatCells(size);
+    for (let i = 0; i < 30; i++) {
+      const [x, y] = cells[i];
+      mods[y * size + x] = bit(bits, i % 15);
+    }
+    mods[(size - 8) * size + 8] = 1;
+  }
+
+  function drawVersion(mods, size, ver) {
+    if (ver < 7) return;
+    let rem = ver;
+    for (let i = 0; i < 12; i++) rem = (rem << 1) ^ ((rem >>> 11) * 0x1F25);
+    const bits = (ver << 12 | rem) >>> 0;
+    for (let i = 0; i < 18; i++) {
+      const v = bit(bits, i), a = size - 11 + i % 3, b = Math.floor(i / 3);
+      mods[b * size + a] = v; mods[a * size + b] = v;
+    }
+  }
+
+  /* ISO 18004 mask penalty (N1=3, N2=3, N3=40, N4=10) */
+  function addHist(run, h, size) { if (h[0] === 0) run += size; h.pop(); h.unshift(run); }
+  function countPatterns(h) {
+    const n = h[1], core = n > 0 && h[2] === n && h[3] === n * 3 && h[4] === n && h[5] === n;
+    return (core && h[0] >= n * 4 && h[6] >= n ? 1 : 0) + (core && h[6] >= n * 4 && h[0] >= n ? 1 : 0);
+  }
+  function terminate(color, run, h, size) {
+    if (color) { addHist(run, h, size); run = 0; }
+    addHist(run + size, h, size);
+    return countPatterns(h);
+  }
+  function penalty(mods, size) {
+    let res = 0;
+    for (let pass = 0; pass < 2; pass++) for (let a = 0; a < size; a++) {
+      let color = 0, run = 0; const h = [0, 0, 0, 0, 0, 0, 0];
+      for (let b = 0; b < size; b++) {
+        const v = pass === 0 ? mods[a * size + b] : mods[b * size + a];
+        if (v === color) { run++; if (run === 5) res += 3; else if (run > 5) res++; }
+        else { addHist(run, h, size); if (!color) res += countPatterns(h) * 40; color = v; run = 1; }
+      }
+      res += terminate(color, run, h, size) * 40;
+    }
+    for (let y = 0; y < size - 1; y++) for (let x = 0; x < size - 1; x++) {
+      const c = mods[y * size + x];
+      if (c === mods[y * size + x + 1] && c === mods[(y + 1) * size + x] && c === mods[(y + 1) * size + x + 1]) res += 3;
+    }
+    let dark = 0; for (let i = 0; i < size * size; i++) dark += mods[i];
+    const total = size * size;
+    res += (Math.ceil(Math.abs(dark * 20 - total * 10) / total) - 1) * 10;
+    return res;
+  }
+
+  /* encode(text[, forceMask]) -> {size, mods, version, mask} ; mods[y*size+x] 1=dark */
+  function encode(text, forceMask) {
+    const bytes = utf8(String(text));
+    const ver = pickVersion(bytes.length);
+    const data = codewords(bytes, ver);
+    for (let i = 0; i < REMAINDER[ver]; i++) { /* remainder bits are already zero */ }
+    const { size, mods, fn } = build(ver, data);
+    let best = -1, bestScore = Infinity, bestMods = null;
+    const masks = forceMask == null ? [0, 1, 2, 3, 4, 5, 6, 7] : [forceMask];
+    for (const m of masks) {
+      const t = mods.slice();
+      applyMask(t, fn, size, m); drawFormat(t, size, m); drawVersion(t, size, ver);
+      const s = penalty(t, size);
+      if (s < bestScore) { bestScore = s; best = m; bestMods = t; }
+    }
+    return { size, mods: bestMods, version: ver, mask: best };
+  }
+  return { encode };
+})();
+
+
+/* ============================================================ STATE
+   Everything lives in one object, saved to localStorage on every change.
+   Sales are never archived: each carries a UTC timestamp, and reports are
+   grouped by UTC month, so last month's report is still there next year. */
+const KEY = "bonded_store_v1";
+const ENT = "ENT";                       /* the Master Entertainment account */
+const ENT_NAME = "MASTER ENTERTAINMENT";
+
+const BLANK = {
+  v: 1,
+  store: { name: "BONDED STORE", cur: "$" },
+  people: [],
+  items: [],
+  sales: [],
+  months: {},
+  seq: { p: 0, i: 0 }
+};
+
+let S = load();
+let view = "sell";
+let sellPerson = "", sellItem = "", reportMonth = "", stockQuery = "";
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const o = JSON.parse(raw);
+      return Object.assign(JSON.parse(JSON.stringify(BLANK)), o);
+    }
+  } catch (e) { /* corrupt or blocked storage — start clean rather than die */ }
+  return JSON.parse(JSON.stringify(BLANK));
+}
+let saveTimer = null;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); }
+    catch (e) { toast("Could not save — storage full?"); }
+  }, 120);
+}
+
+/* ============================================================ HELPERS */
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+const r2 = n => Math.round((+n || 0) * 100) / 100;
+const money = n => S.store.cur + r2(n).toFixed(2);
+function uid(p) { return p + Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 6); }
+
+/* Time is UTC everywhere — the ship crosses zones mid-month and a sale must
+   not move between report months because the clock was put back an hour. */
+const nowUTC = () => new Date().toISOString();
+const monthOf = ts => String(ts).slice(0, 7);                       /* "2026-09" */
+const thisMonth = () => nowUTC().slice(0, 7);
+const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+function monthName(m) { const [y, mm] = m.split("-"); return MON[+mm - 1] + " " + y; }
+function utcStamp(ts) {
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return "";
+  const p = n => String(n).padStart(2, "0");
+  return p(d.getUTCDate()) + " " + MON[d.getUTCMonth()] + " " + p(d.getUTCHours()) + ":" + p(d.getUTCMinutes()) + "z";
+}
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+/* ---------- lookups ---------- */
+function person(id) {
+  if (id === ENT) return { id: ENT, no: "", name: ENT_NAME, rank: "SHIP ACCOUNT", off: false };
+  return S.people.find(p => p.id === id) || null;
+}
+function item(id) { return S.items.find(i => i.id === id) || null; }
+function activePeople() { return S.people.filter(p => !p.off); }
+/* Sign-off keeps the person on the list (greyed, at the bottom) until the month
+   is closed — their purchases are still being deducted from the final wage. */
+function sortedPeople() { return S.people.slice().sort((a, b) => (a.off - b.off) || (a.no - b.no)); }
+
+function monthRec(m) {
+  if (!S.months[m]) S.months[m] = { carryCash: 0, carryWorth: 0, restock: 0, closed: false, closedAt: "" };
+  return S.months[m];
+}
+function salesIn(m) { return S.sales.filter(s => monthOf(s.ts) === m); }
+const lineTotal = s => r2(s.qty * s.price);
+const sumLines = a => r2(a.reduce((t, s) => t + lineTotal(s), 0));
+
+function stockWorth() { return r2(S.items.reduce((t, i) => t + (+i.qty || 0) * (+i.price || 0), 0)); }
+function soldIn(m) { return sumLines(salesIn(m)); }
+function crewSoldIn(m) { return sumLines(salesIn(m).filter(s => s.pid !== ENT)); }
+function entIn(m) { return sumLines(salesIn(m).filter(s => s.pid === ENT)); }
+/* Cash the account should be holding: what it carried in, plus what the crew
+   was charged, less what was spent restocking. Entertainment is stock issued
+   free on the Master's account, so it never becomes cash. */
+function cashNow(m) { const r = monthRec(m); return r2((+r.carryCash || 0) + crewSoldIn(m) - (+r.restock || 0)); }
+function spendOf(pid, m) { return sumLines(salesIn(m).filter(s => s.pid === pid)); }
+
+/* Every month that has anything to show, newest first. */
+function knownMonths() {
+  const set = new Set(S.sales.map(s => monthOf(s.ts)));
+  Object.keys(S.months).forEach(m => set.add(m));
+  set.add(thisMonth());
+  return [...set].sort().reverse();
+}
+
+/* ============================================================ QR LABELS
+   Every product carries a code that is unique for the life of the store: the
+   id is minted once, at creation, and never reused — so a label stuck on a
+   shelf keeps pointing at the same product even after renames and price
+   changes. The payload stays human-readable, so a generic phone scanner shows
+   the crew what the item is, while this app reads field 2 and ignores the rest. */
+function qrPayload(it) {
+  return ["BS1", it.id, it.code || "", it.name, r2(it.price).toFixed(2)].join("|");
+}
+function parseScan(text) {
+  const t = String(text || "").trim();
+  const parts = t.split("|");
+  if (parts[0] === "BS1" && parts[1]) {
+    const byId = item(parts[1]);
+    if (byId) return byId;
+    if (parts[2]) return S.items.find(i => i.code && i.code.toUpperCase() === parts[2].toUpperCase()) || null;
+    return null;
+  }
+  const up = t.toUpperCase();
+  return S.items.find(i => (i.code && i.code.toUpperCase() === up) || i.id === t) || null;
+}
+function drawQR(canvas, text, scale, quiet) {
+  const q = quiet == null ? 3 : quiet;
+  const { size, mods } = QR.encode(text);
+  const s = scale || 1, px = (size + q * 2) * s;
+  canvas.width = px; canvas.height = px;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, px, px);
+  ctx.fillStyle = "#000";
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++)
+    if (mods[y * size + x]) ctx.fillRect((x + q) * s, (y + q) * s, s, s);
+}
+/* Canvases are drawn after the sheet is in the DOM, so a failed encode shows a
+   message on that one label instead of blanking the whole screen. */
+function paintQRs(root) {
+  root.querySelectorAll("canvas[data-qr]").forEach(c => {
+    try { drawQR(c, c.getAttribute("data-qr"), +c.getAttribute("data-scale") || 4); }
+    catch (e) { c.replaceWith(Object.assign(document.createElement("div"), { textContent: "QR too long", style: "color:#c00;font-size:10px" })); }
+  });
+}
+
+/* ============================================================ SHEET */
+function sheet(html) {
+  $("sheetBox").innerHTML = html;
+  $("sheet").classList.add("open");
+  paintQRs($("sheetBox"));
+  $("sheetBox").scrollTop = 0;
+}
+function closeSheet() { $("sheet").classList.remove("open"); $("sheetBox").innerHTML = ""; }
+$("sheet").addEventListener("click", e => { if (e.target.id === "sheet") closeSheet(); });
+
+/* ============================================================ SELL */
+function vSell() {
+  const m = thisMonth();
+  if (!sellPerson || (sellPerson !== ENT && !person(sellPerson))) sellPerson = (activePeople()[0] || {}).id || ENT;
+  if (!sellItem || !item(sellItem)) sellItem = (S.items[0] || {}).id || "";
+
+  if (!S.items.length || !S.people.length) {
+    return `<div class="card"><div class="empty">
+      ${!S.people.length ? "No one on the list yet.<br>Add people first." : ""}
+      ${!S.items.length ? (!S.people.length ? "<br><br>" : "") + "No products yet.<br>Add stock first." : ""}
+    </div>
+    ${!S.people.length ? '<button class="btn" onclick="go(\'people\')">Go to People</button>' : ""}
+    ${!S.items.length ? '<button class="btn sec" onclick="go(\'stock\')">Go to Stock</button>' : ""}
+    </div>`;
+  }
+
+  const pOpts = sortedPeople().filter(p => !p.off).map(p => `<option value="${esc(p.id)}"${p.id === sellPerson ? " selected" : ""}>${esc(p.no)} · ${esc(p.name)}</option>`).join("")
+    + `<option value="${ENT}"${sellPerson === ENT ? " selected" : ""}>${ENT_NAME}</option>`;
+  const iOpts = S.items.map(i => `<option value="${esc(i.id)}"${i.id === sellItem ? " selected" : ""}>${esc(i.name)} — ${money(i.price)}${(+i.qty || 0) <= 0 ? " (out)" : " · " + i.qty + " left"}</option>`).join("");
+
+  const lines = salesIn(m).filter(s => s.pid === sellPerson).sort((a, b) => b.ts.localeCompare(a.ts));
+  const who = person(sellPerson);
+
+  return `
+  <div class="card">
+    <div class="f"><label>Sell to</label>
+      <select class="in" id="selP" onchange="sellPerson=this.value;render()">${pOpts}</select></div>
+    <div class="f"><label>Product</label>
+      <select class="in" id="selI" onchange="sellItem=this.value">${iOpts}</select></div>
+    <div class="row">
+      <div style="flex:1"><label>Quantity</label>
+        <div class="step"><button onclick="bump(-1)">−</button><input id="qty" type="number" inputmode="numeric" value="1"><button onclick="bump(1)">+</button></div></div>
+      ${SCAN_OK ? '<button class="btn sec" style="margin:0;width:96px;flex:none;padding:15px 0" onclick="startScan()">Scan</button>' : ""}
+    </div>
+    <button class="btn" onclick="addSale()">Add sale</button>
+  </div>
+
+  <div class="card">
+    <div class="sec-t">${esc(who ? who.name : "")} · ${monthName(m)}</div>
+    <div class="list">${lines.length ? lines.map(s => `
+      <div class="item">
+        <div class="m"><b>${esc(s.iname)}</b><span>${money(s.price)} × ${s.qty} · ${utcStamp(s.ts)}</span></div>
+        <div class="amt">${money(lineTotal(s))}</div>
+        <button class="x" onclick="delSale('${s.id}')">✕</button>
+      </div>`).join("") : '<div class="empty">Nothing bought yet this month.</div>'}
+    </div>
+    <div class="tot"><span>Total</span><b>${money(sumLines(lines))}</b></div>
+  </div>`;
+}
+function bump(d) { const q = $("qty"); q.value = Math.max(1, (+q.value || 1) + d); }
+
+function addSale() {
+  const pid = $("selP").value, it = item($("selI").value), qty = Math.max(1, +$("qty").value || 1);
+  if (!it) return;
+  const have = +it.qty || 0;
+  if (qty > have && !confirm(`Only ${have} of ${it.name} left. Sell ${qty} anyway?`)) return;
+  const who = person(pid);
+  S.sales.push({
+    id: uid("S"), ts: nowUTC(), pid, pname: who ? who.name : "",
+    iid: it.id, code: it.code || "", iname: it.name, qty, price: r2(it.price)
+  });
+  it.qty = have - qty;                       /* stock follows the sale, always */
+  $("qty").value = 1;
+  save(); render();
+  toast(qty + " × " + it.name + " → " + (who ? who.name : ""));
+}
+function delSale(id) {
+  const i = S.sales.findIndex(s => s.id === id);
+  if (i < 0) return;
+  const s = S.sales[i];
+  if (!confirm(`Remove ${s.qty} × ${s.iname} from ${s.pname}?`)) return;
+  const it = item(s.iid);
+  if (it) it.qty = (+it.qty || 0) + s.qty;   /* undoing a sale puts stock back */
+  S.sales.splice(i, 1);
+  save(); render(); toast("Removed");
+}
+
+/* ============================================================ STOCK */
+function vStock() {
+  const m = thisMonth(), rec = monthRec(m);
+  const q = stockQuery.trim().toUpperCase();
+  const list = S.items.filter(i => !q || i.name.toUpperCase().includes(q) || (i.code || "").toUpperCase().includes(q));
+  const sold = m => soldIn(m);
+
+  return `
+  <div class="tiles">
+    <div class="tile"><div class="k">Stock worth</div><div class="v a">${money(stockWorth())}</div></div>
+    <div class="tile"><div class="k">Sold this month</div><div class="v g">${money(sold(m))}</div></div>
+    <div class="tile"><div class="k">Cash in hand</div><div class="v">${money(cashNow(m))}</div></div>
+  </div>
+
+  <button class="carry" onclick="monthSheet()">
+    <span>Last month left <b>${money(rec.carryCash)}</b> cash · <b>${money(rec.carryWorth)}</b> stock</span>
+    <span class="go">${monthName(m)} ›</span>
+  </button>
+
+  <div class="card">
+    <div class="row">
+      <input class="in" style="flex:1" placeholder="Search product or code" value="${esc(stockQuery)}" oninput="stockQuery=this.value;renderSoft()">
+      <button class="sq" onclick="editItem('')" aria-label="Add product">+</button>
+    </div>
+    <div class="hd"><span>${list.length} product${list.length === 1 ? "" : "s"}</span><button onclick="allLabels()">QR labels</button></div>
+    <div class="list">${list.length ? list.map(i => {
+      const left = +i.qty || 0;
+      return `<div class="item">
+        <button class="m" onclick="editItem('${i.id}')">
+          <b>${i.code ? `<span class="chip">${esc(i.code)}</span>` : ""}${esc(i.name)}</b>
+          <span>${money(i.price)} · ${left} ${esc(i.unit || "pcs")} left</span>
+        </button>
+        <div class="amt ${left <= 0 ? "z" : left <= 5 ? "a" : ""}">${money(left * (+i.price || 0))}</div>
+        <button class="qr-btn" onclick="showQR('${i.id}')" aria-label="QR code">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14h1M14 20h3M20 17v4"/></svg>
+        </button>
+      </div>`;
+    }).join("") : '<div class="empty">No products.<br>Tap “Add product”.</div>'}</div>
+  </div>`;
+}
+function setMonth(k, v) { monthRec(thisMonth())[k] = r2(v); save(); render(); }
+
+/* The month's money lives behind one line on the Stock screen, so the product
+   list starts at the top of the screen where the day's work actually happens. */
+function monthSheet() {
+  const m = thisMonth(), rec = monthRec(m);
+  sheet(`
+    <h2>${monthName(m)}</h2>
+    <div class="h-sub">Carried in · spent · closing</div>
+    <div class="f"><label>Remaining cash from last month</label>
+      <input class="in" type="number" inputmode="decimal" value="${rec.carryCash}" onchange="setMonth('carryCash',this.value)"></div>
+    <div class="f"><label>Remaining item worth from last month</label>
+      <input class="in" type="number" inputmode="decimal" value="${rec.carryWorth}" onchange="setMonth('carryWorth',this.value)"></div>
+    <div class="f"><label>Spent restocking this month</label>
+      <input class="in" type="number" inputmode="decimal" value="${rec.restock}" onchange="setMonth('restock',this.value)"></div>
+    <div class="list" style="margin:14px 0 4px">
+      ${accRow("Charged to crew", crewSoldIn(m))}
+      ${accRow("Issued to Master Ent.", entIn(m))}
+      ${accRow("Cash in hand now", cashNow(m), true)}
+      ${accRow("Stock worth now", stockWorth(), true)}
+    </div>
+    <button class="btn sec" onclick="closeMonth()">Close ${monthName(m)}</button>
+    <button class="btn sec" onclick="closeSheet()">Done</button>`);
+}
+
+/* Closing a month freezes nothing except the carry-over: sales stay where they
+   are so old reports keep working. What carries is the cash and the stock the
+   next month opens with, and anyone who signed off finally drops off the list. */
+function closeMonth() {
+  const m = thisMonth();
+  const cash = cashNow(m), worth = stockWorth();
+  const leaving = S.people.filter(p => p.off);
+  if (!confirm(`Close ${monthName(m)}?\n\nCarries into next month:\ncash ${money(cash)}\nstock ${money(worth)}` +
+    (leaving.length ? `\n\n${leaving.length} signed-off ${leaving.length === 1 ? "person" : "people"} will be removed.` : ""))) return;
+  const rec = monthRec(m);
+  rec.closed = true; rec.closedAt = nowUTC(); rec.closeCash = cash; rec.closeWorth = worth;
+  const d = new Date(m + "-01T00:00:00Z"); d.setUTCMonth(d.getUTCMonth() + 1);
+  const next = d.toISOString().slice(0, 7);
+  const nr = monthRec(next);
+  nr.carryCash = cash; nr.carryWorth = worth; nr.restock = 0;
+  S.people = S.people.filter(p => !p.off);
+  save(); closeSheet(); render(); toast("Closed " + monthName(m));
+}
+
+function editItem(id) {
+  const it = id ? item(id) : null;
+  sheet(`
+    <h2>${it ? "Edit product" : "New product"}</h2>
+    <div class="h-sub">${it ? esc(it.code || it.id) : "Gets its own QR code"}</div>
+    <div class="f"><label>Name</label><input class="in" id="iName" value="${esc(it ? it.name : "")}" placeholder="e.g. WINSTON RED"></div>
+    <div class="f"><label>Code (short, for the label)</label><input class="in" id="iCode" value="${esc(it ? it.code : "")}" placeholder="e.g. CIG-01" style="text-transform:uppercase"></div>
+    <div class="row">
+      <div class="f" style="flex:1;margin:0"><label>Price</label><input class="in" id="iPrice" type="number" inputmode="decimal" value="${it ? it.price : ""}" placeholder="0.00"></div>
+      <div class="f" style="flex:1;margin:0"><label>In stock</label><input class="in" id="iQty" type="number" inputmode="numeric" value="${it ? it.qty : ""}" placeholder="0"></div>
+    </div>
+    <div class="f" style="margin-top:12px"><label>Unit</label><input class="in" id="iUnit" value="${esc(it ? (it.unit || "pcs") : "pcs")}"></div>
+    <button class="btn" onclick="saveItem('${id}')">Save</button>
+    ${it ? `<button class="btn sec" onclick="showQR('${id}')">Show QR label</button>
+            <button class="btn red" onclick="delItem('${id}')">Delete product</button>` : ""}
+    <button class="btn sec" onclick="closeSheet()">Cancel</button>`);
+  setTimeout(() => $("iName").focus(), 60);
+}
+function saveItem(id) {
+  const name = $("iName").value.trim();
+  if (!name) { toast("Give it a name"); return; }
+  const code = $("iCode").value.trim().toUpperCase();
+  const price = r2($("iPrice").value), qty = Math.round(+$("iQty").value || 0), unit = $("iUnit").value.trim() || "pcs";
+  const clash = S.items.find(i => code && i.code === code && i.id !== id);
+  if (clash) { toast("Code " + code + " is already on " + clash.name); return; }
+  if (id) {
+    Object.assign(item(id), { name, code, price, qty, unit });
+  } else {
+    S.seq.i++;
+    S.items.push({ id: uid("I"), code: code || ("P" + String(S.seq.i).padStart(3, "0")), name, price, qty, unit });
+  }
+  save(); closeSheet(); render(); toast("Saved");
+}
+function delItem(id) {
+  const it = item(id);
+  const sold = S.sales.filter(s => s.iid === id).length;
+  if (!confirm(`Delete ${it.name}?` + (sold ? `\n\n${sold} past sale${sold === 1 ? "" : "s"} stay on the reports.` : ""))) return;
+  S.items = S.items.filter(i => i.id !== id);
+  save(); closeSheet(); render(); toast("Deleted");
+}
+
+function showQR(id) {
+  const it = item(id);
+  if (!it) return;
+  sheet(`
+    <h2>${esc(it.name)}</h2>
+    <div class="h-sub">${esc(it.code)} · ${money(it.price)}</div>
+    <div class="qr-wrap"><canvas data-qr="${esc(qrPayload(it))}" data-scale="8"></canvas></div>
+    <div class="qr-cap"><b>${esc(it.name)}</b><span>${esc(it.code)} · ${money(it.price)}</span></div>
+    <button class="btn sec no-print" onclick="printSheet()">Print / save as PDF</button>
+    <button class="btn sec no-print" onclick="closeSheet()">Close</button>`);
+}
+function allLabels() {
+  if (!S.items.length) { toast("No products yet"); return; }
+  sheet(`
+    <h2 class="no-print">QR labels</h2>
+    <div class="h-sub no-print">${S.items.length} products · one code each</div>
+    <div class="labels">${S.items.map(i => `
+      <div class="label">
+        <canvas data-qr="${esc(qrPayload(i))}" data-scale="4"></canvas>
+        <div class="n">${esc(i.name)}</div>
+        <div class="c">${esc(i.code)} · ${money(i.price)}</div>
+      </div>`).join("")}</div>
+    <button class="btn no-print" onclick="printSheet()">Print / save as PDF</button>
+    <button class="btn sec no-print" onclick="closeSheet()">Close</button>`);
+}
+/* On Android the wrapper hands the page to the system print service (which can
+   also save a PDF); in a plain browser this is just window.print(). */
+function printSheet() {
+  if (window.Android && Android.printPage) { Android.printPage(); return; }
+  window.print();
+}
+
+/* ============================================================ PEOPLE */
+function vPeople() {
+  const m = thisMonth(), list = sortedPeople();
+  return `
+  <div class="card">
+    <button class="btn" onclick="editPerson('')">+ Add person</button>
+    <div class="list" style="margin-top:12px">${list.length ? list.map(p => `
+      <button class="item ${p.off ? "off" : ""}" onclick="editPerson('${p.id}')">
+        <div class="m"><b>${esc(p.no)} · ${esc(p.name)}</b><span>${esc(p.rank || "")}${p.off ? " · SIGNED OFF " + utcStamp(p.offAt) : ""}</span></div>
+        <div class="amt ${spendOf(p.id, m) ? "" : "z"}">${money(spendOf(p.id, m))}</div>
+      </button>`).join("") : '<div class="empty">Nobody on the list.<br>Tap “Add person”.</div>'}
+    </div>
+  </div>
+  <div class="card">
+    <div class="sec-t">Ship account</div>
+    <div class="list">
+      <div class="item"><div class="m"><b>${ENT_NAME}</b><span>Always available in Sell and Report</span></div>
+        <div class="amt a">${money(spendOf(ENT, m))}</div></div>
+    </div>
+  </div>`;
+}
+function editPerson(id) {
+  const p = id ? person(id) : null;
+  sheet(`
+    <h2>${p ? "Edit person" : "New person"}</h2>
+    <div class="h-sub">${p ? esc(p.rank || "") : "Added to the sell list"}</div>
+    <div class="row">
+      <div class="f" style="width:88px;flex:none;margin:0"><label>No.</label><input class="in" id="pNo" type="number" inputmode="numeric" value="${p ? esc(p.no) : (Math.max(0, ...S.people.map(x => +x.no || 0)) + 1)}"></div>
+      <div class="f" style="flex:1;margin:0"><label>Name</label><input class="in" id="pName" value="${esc(p ? p.name : "")}" placeholder="Full name"></div>
+    </div>
+    <div class="f" style="margin-top:12px"><label>Rank</label><input class="in" id="pRank" value="${esc(p ? p.rank : "")}" placeholder="e.g. 2ND OFF"></div>
+    <button class="btn" onclick="savePerson('${id}')">Save</button>
+    ${p ? `<button class="btn sec" onclick="signOff('${id}')">${p.off ? "Cancel sign-off" : "Sign off"}</button>
+           <button class="btn red" onclick="delPerson('${id}')">Delete person</button>` : ""}
+    <button class="btn sec" onclick="closeSheet()">Cancel</button>`);
+  setTimeout(() => $("pName").focus(), 60);
+}
+function savePerson(id) {
+  const name = $("pName").value.trim();
+  if (!name) { toast("Give them a name"); return; }
+  const no = $("pNo").value.trim(), rank = $("pRank").value.trim().toUpperCase();
+  if (id) Object.assign(person(id), { name, no, rank });
+  else { S.seq.p++; S.people.push({ id: uid("P"), no, name, rank, off: false, offAt: "" }); }
+  save(); closeSheet(); render(); toast("Saved");
+}
+/* Signing off is not deleting: they stay visible, greyed, at the bottom of the
+   list until the month is closed, because what they bought is still owed. */
+function signOff(id) {
+  const p = person(id);
+  p.off = !p.off; p.offAt = p.off ? nowUTC() : "";
+  save(); closeSheet(); render();
+  toast(p.off ? p.name + " signed off" : p.name + " back on the list");
+}
+function delPerson(id) {
+  const p = person(id);
+  const n = S.sales.filter(s => s.pid === id).length;
+  if (!confirm(`Delete ${p.name}?` + (n ? `\n\n${n} purchase${n === 1 ? "" : "s"} stay on the reports under their name.` : ""))) return;
+  S.people = S.people.filter(x => x.id !== id);
+  save(); closeSheet(); render(); toast("Deleted");
+}
+
+/* ============================================================ REPORT */
+function vReport() {
+  const months = knownMonths();
+  if (!reportMonth || !months.includes(reportMonth)) reportMonth = thisMonth();
+  const m = reportMonth, rec = monthRec(m), rows = salesIn(m);
+
+  /* Everyone who bought something, plus everyone still on the list, plus the
+     Master Entertainment account — which is always shown, even at zero. */
+  const ids = new Set(rows.map(s => s.pid));
+  sortedPeople().forEach(p => ids.add(p.id));
+  ids.delete(ENT);
+  const people = [...ids].map(id => {
+    const mine = rows.filter(s => s.pid === id);
+    const p = person(id);
+    return { id, name: p ? p.name : (mine[0] || {}).pname || "—", no: p ? p.no : "", rank: p ? p.rank : "", off: p ? p.off : true, gone: !p, total: sumLines(mine), n: mine.length };
+  }).sort((a, b) => (a.off - b.off) || (b.total - a.total) || String(a.no).localeCompare(String(b.no)));
+  const entTotal = entIn(m), entN = rows.filter(s => s.pid === ENT).length;
+
+  return `
+  <div class="card" style="padding-bottom:6px">
+    <select class="in" onchange="reportMonth=this.value;render()">
+      ${months.map(x => `<option value="${x}"${x === m ? " selected" : ""}>${monthName(x)}${monthRec(x).closed ? " · closed" : ""}</option>`).join("")}
+    </select>
+    <div class="tiles" style="margin-top:12px">
+      <div class="tile"><div class="k">Sold total</div><div class="v g">${money(soldIn(m))}</div></div>
+      <div class="tile"><div class="k">To crew</div><div class="v">${money(crewSoldIn(m))}</div></div>
+      <div class="tile"><div class="k">Master ent.</div><div class="v a">${money(entTotal)}</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-t">Who bought what · ${monthName(m)}</div>
+    <div class="list">
+      <button class="item" onclick="personReport('${ENT}')">
+        <div class="m"><b>${ENT_NAME}</b><span>${entN} line${entN === 1 ? "" : "s"} · ship account</span></div>
+        <div class="amt ${entTotal ? "a" : "z"}">${money(entTotal)}</div>
+      </button>
+      ${people.map(p => `
+      <button class="item ${p.off ? "off" : ""}" onclick="personReport('${p.id}')">
+        <div class="m"><b>${esc(p.no ? p.no + " · " : "")}${esc(p.name)}</b><span>${p.n} line${p.n === 1 ? "" : "s"}${p.gone ? " · removed" : p.off ? " · signed off" : ""}</span></div>
+        <div class="amt ${p.total ? "" : "z"}">${money(p.total)}</div>
+      </button>`).join("")}
+    </div>
+    <div class="tot"><span>Month total</span><b>${money(soldIn(m))}</b></div>
+  </div>
+
+  <div class="card">
+    <div class="sec-t">Account · ${monthName(m)}</div>
+    <div class="list">
+      ${accRow("Cash carried from last month", rec.carryCash)}
+      ${accRow("Item worth carried from last month", rec.carryWorth)}
+      ${accRow("Charged to crew", crewSoldIn(m))}
+      ${accRow("Issued to Master Entertainment", entTotal)}
+      ${accRow("Spent restocking", -(+rec.restock || 0))}
+      ${accRow(rec.closed ? "Cash at close" : "Cash in hand now", cashNow(m), true)}
+      ${accRow(rec.closed ? "Item worth at close" : "Item worth now", rec.closed ? rec.closeWorth : stockWorth(), true)}
+    </div>
+    <button class="btn sec" onclick="shareCSV()">Export month as CSV</button>
+    <button class="btn sec" onclick="dataSheet()">Backup / restore</button>
+  </div>`;
+}
+function accRow(k, v, strong) {
+  return `<div class="item"><div class="m"><b style="font-weight:${strong ? 700 : 400};font-size:13.5px">${esc(k)}</b></div>
+    <div class="amt ${v < 0 ? "z" : strong ? "" : "z"}" style="color:${strong ? "var(--green)" : v < 0 ? "var(--red)" : "var(--fog)"}">${money(v)}</div></div>`;
+}
+
+/* Per-person detail — this is where a purchase can be moved onto the Master
+   Entertainment account: the goods left the store either way, so the stock is
+   untouched; only who gets charged changes. */
+function personReport(pid) {
+  const m = reportMonth, p = person(pid);
+  const rows = salesIn(m).filter(s => s.pid === pid).sort((a, b) => b.ts.localeCompare(a.ts));
+  const name = p ? p.name : (rows[0] || {}).pname || "—";
+  const isEnt = pid === ENT;
+  sheet(`
+    <h2>${esc(name)}</h2>
+    <div class="h-sub">${monthName(m)} · ${rows.length} line${rows.length === 1 ? "" : "s"} · all times UTC</div>
+    ${rows.length && !isEnt ? `<button class="btn sec" onclick="moveAllToEnt('${pid}')">Move everything to Master Ent.</button>` : ""}
+    <div class="list" style="margin-top:6px">${rows.length ? rows.map(s => `
+      <div class="item">
+        <div class="m"><b>${esc(s.iname)}</b><span>${utcStamp(s.ts)} · ${money(s.price)} × ${s.qty}${s.movedFrom ? " · from " + esc(s.movedFrom) : ""}</span></div>
+        <div class="amt">${money(lineTotal(s))}</div>
+        ${isEnt
+          ? (s.movedFrom ? `<button class="mv back" onclick="unmoveFromEnt('${s.id}')">↩ back</button>` : "")
+          : `<button class="mv" onclick="moveToEnt('${s.id}')">→ ent</button>`}
+      </div>`).join("") : '<div class="empty">Nothing this month.</div>'}
+    </div>
+    <div class="tot"><span>Total</span><b>${money(sumLines(rows))}</b></div>
+    <button class="btn sec" onclick="closeSheet()">Close</button>`);
+}
+function moveToEnt(sid) {
+  const s = S.sales.find(x => x.id === sid);
+  if (!s || s.pid === ENT) return;
+  s.movedFrom = s.pname; s.movedAt = nowUTC();
+  s.pid = ENT; s.pname = ENT_NAME;
+  save(); render(); personReport(ENT);
+  toast(s.iname + " → Master Ent.");
+}
+function unmoveFromEnt(sid) {
+  const s = S.sales.find(x => x.id === sid);
+  if (!s || !s.movedFrom) return;
+  const back = S.people.find(p => p.name === s.movedFrom);
+  if (!back) { toast(s.movedFrom + " is no longer on the list"); return; }
+  s.pid = back.id; s.pname = back.name;
+  delete s.movedFrom; delete s.movedAt;
+  save(); render(); personReport(ENT);
+  toast("Sent back to " + back.name);
+}
+function moveAllToEnt(pid) {
+  const m = reportMonth, rows = salesIn(m).filter(s => s.pid === pid);
+  if (!rows.length) return;
+  const p = person(pid), name = p ? p.name : rows[0].pname;
+  if (!confirm(`Move all ${rows.length} of ${name}'s purchases (${money(sumLines(rows))}) to ${ENT_NAME}?`)) return;
+  rows.forEach(s => { s.movedFrom = s.pname; s.movedAt = nowUTC(); s.pid = ENT; s.pname = ENT_NAME; });
+  save(); render(); personReport(ENT);
+  toast(rows.length + " lines moved");
+}
+
+/* ============================================================ EXPORT / BACKUP
+   A phone gets dropped, wiped and replaced. The month's takings must be able
+   to leave the device, so both paths write real files: the Android wrapper
+   hands them to the system share sheet, a browser downloads them. */
+function saveFile(name, text, mime) {
+  if (window.Android && Android.saveFile) { Android.saveFile(name, text, mime || "text/plain"); return; }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: (mime || "text/plain") + ";charset=utf-8" }));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast("Saved " + name);
+}
+function csvCell(v) { const s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+function shareCSV() {
+  const m = reportMonth || thisMonth();
+  const rows = salesIn(m).sort((a, b) => a.ts.localeCompare(b.ts));
+  const out = [["utc_date", "utc_time", "account", "rank", "product", "code", "qty", "unit_price", "amount", "moved_from"]];
+  rows.forEach(s => {
+    const p = person(s.pid);
+    out.push([s.ts.slice(0, 10), s.ts.slice(11, 19), s.pname, p ? p.rank || "" : "", s.iname, s.code, s.qty, r2(s.price).toFixed(2), lineTotal(s).toFixed(2), s.movedFrom || ""]);
+  });
+  out.push([], ["Charged to crew", "", "", "", "", "", "", "", crewSoldIn(m).toFixed(2)]);
+  out.push(["Master entertainment", "", "", "", "", "", "", "", entIn(m).toFixed(2)]);
+  out.push(["Month total", "", "", "", "", "", "", "", soldIn(m).toFixed(2)]);
+  const rec = monthRec(m);
+  out.push(["Cash carried in", "", "", "", "", "", "", "", r2(rec.carryCash).toFixed(2)]);
+  out.push(["Item worth carried in", "", "", "", "", "", "", "", r2(rec.carryWorth).toFixed(2)]);
+  out.push(["Spent restocking", "", "", "", "", "", "", "", r2(rec.restock).toFixed(2)]);
+  out.push(["Cash in hand", "", "", "", "", "", "", "", cashNow(m).toFixed(2)]);
+  out.push(["Stock worth now", "", "", "", "", "", "", "", stockWorth().toFixed(2)]);
+  saveFile("bonded-store-" + m + ".csv", out.map(r => r.map(csvCell).join(",")).join("\n"), "text/csv");
+}
+function dataSheet() {
+  sheet(`
+    <h2>Backup / restore</h2>
+    <div class="h-sub">${S.items.length} products · ${S.people.length} people · ${S.sales.length} sales</div>
+    <button class="btn" onclick="backup()">Save a backup file</button>
+    <div class="f" style="margin-top:18px"><label>Restore — paste a backup here</label>
+      <textarea class="in" id="restoreBox" rows="4" placeholder='{"v":1,...}' style="font-family:var(--mono);font-size:12px"></textarea></div>
+    <button class="btn sec" onclick="restore()">Replace everything with this</button>
+    <button class="btn sec" onclick="closeSheet()">Close</button>`);
+}
+function backup() {
+  saveFile("bonded-store-backup-" + nowUTC().slice(0, 10) + ".json", JSON.stringify(S, null, 2), "application/json");
+}
+function restore() {
+  const raw = $("restoreBox").value.trim();
+  if (!raw) { toast("Paste a backup first"); return; }
+  let o;
+  try { o = JSON.parse(raw); } catch (e) { toast("That is not valid backup data"); return; }
+  if (!o || !Array.isArray(o.items) || !Array.isArray(o.sales)) { toast("That backup is missing products or sales"); return; }
+  if (!confirm(`Replace everything on this phone with that backup?\n\n${o.items.length} products, ${(o.people || []).length} people, ${o.sales.length} sales.\n\nThis cannot be undone.`)) return;
+  S = Object.assign(JSON.parse(JSON.stringify(BLANK)), o);
+  save(); closeSheet(); render(); toast("Restored");
+}
+
+/* ============================================================ SCANNER
+   Uses the browser's own barcode reader where there is one (Android WebView and
+   Chrome have it). Where there is not, the Scan button never appears and the
+   product picker is the only way in — no half-working camera screen. */
+const SCAN_OK = typeof window.BarcodeDetector !== "undefined" && !!navigator.mediaDevices;
+let scanStream = null, scanStop = false;
+async function startScan() {
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+  } catch (e) { toast("No camera access"); return; }
+  const v = $("scanVid");
+  v.srcObject = scanStream; await v.play();
+  $("scan").classList.add("open");
+  scanStop = false;
+  const det = new BarcodeDetector({ formats: ["qr_code"] });
+  (async function loop() {
+    while (!scanStop) {
+      try {
+        const found = await det.detect(v);
+        if (found.length) {
+          const it = parseScan(found[0].rawValue);
+          if (it) { stopScan(); sellItem = it.id; render(); toast(it.name); return; }
+        }
+      } catch (e) { /* a dropped frame is not a failure — keep looking */ }
+      await new Promise(r => setTimeout(r, 180));
+    }
+  })();
+}
+function stopScan() {
+  scanStop = true;
+  $("scan").classList.remove("open");
+  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+  $("scanVid").srcObject = null;
+}
+
+/* ============================================================ SHELL */
+const TITLES = { sell: "Sell", stock: "Stock list", people: "Personnel list", report: "Report" };
+function go(v) { view = v; closeSheet(); render(); window.scrollTo(0, 0); }
+function render() {
+  $("topSub").textContent = TITLES[view];
+  $("scr").innerHTML = view === "sell" ? vSell() : view === "stock" ? vStock() : view === "people" ? vPeople() : vReport();
+  document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("on", b.dataset.v === view));
+}
+/* Re-render without stealing focus from the box being typed in. */
+function renderSoft() {
+  const el = document.activeElement, pos = el && el.selectionStart;
+  render();
+  const again = $("scr").querySelector("input[placeholder^='Search']");
+  if (again) { again.focus(); try { again.setSelectionRange(pos, pos); } catch (e) {} }
+}
+document.querySelectorAll("#nav button").forEach(b => b.onclick = () => go(b.dataset.v));
+document.addEventListener("keydown", e => { if (e.key === "Escape") { closeSheet(); stopScan(); } });
+/* Android back button: close what is open before leaving the app. */
+window.addEventListener("bs-back", () => {
+  if ($("scan").classList.contains("open")) { stopScan(); return; }
+  if ($("sheet").classList.contains("open")) { closeSheet(); return; }
+  if (view !== "sell") { go("sell"); return; }
+  if (window.Android && Android.exitApp) Android.exitApp();
+});
+render();
+</script>
+</body>
+</html>

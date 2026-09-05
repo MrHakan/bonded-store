@@ -1,0 +1,43 @@
+name: Build APK
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Build debug APK
+        working-directory: android
+        run: gradle --no-daemon assembleDebug
+
+      - name: Check the web app really made it into the APK
+        run: |
+          unzip -p android/app/build/outputs/apk/debug/app-debug.apk assets/www/index.html \
+            | sha256sum | cut -d' ' -f1 > packaged.sha
+          sha256sum app/index.html | cut -d' ' -f1 > source.sha
+          diff packaged.sha source.sha
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bonded-store-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/debug/app-debug.apk
