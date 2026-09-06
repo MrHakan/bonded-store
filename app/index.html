@@ -61,10 +61,14 @@ select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%
 .btn.sec{background:var(--deck);color:var(--foam);border:1px solid var(--line);font-weight:600}
 .btn.red{background:#2a1414;color:var(--red);border:1px solid #47201f}
 .btn:disabled{opacity:.4}
+/* A flex item defaults to min-width:auto and so refuses to shrink below its
+   content — a number input reports a wide minimum, which pushed the quantity
+   stepper past the screen edge. Nothing in a row needs that floor. */
 .row{display:flex;gap:10px;align-items:flex-end}
+.row > *{min-width:0}
 .step{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--abyss)}
 .step button{width:46px;height:50px;font-size:24px;background:var(--deck)}
-.step input{flex:1;min-width:0;border:none;background:none;text-align:center;font:600 18px var(--mono);color:var(--foam)}
+.step input{flex:1;min-width:0;width:100%;border:none;background:none;text-align:center;font:600 18px var(--mono);color:var(--foam)}
 .step input:focus{outline:none}
 
 /* three numbers, nothing else */
@@ -647,11 +651,9 @@ function vSell() {
       <select class="in" id="selP" onchange="sellPerson=this.value;render()">${pOpts}</select></div>
     <div class="f"><label>Product</label>
       <select class="in" id="selI" onchange="sellItem=this.value">${iOpts}</select></div>
-    <div class="row">
-      <div style="flex:1"><label>Quantity</label>
-        <div class="step"><button onclick="bump(-1)">−</button><input id="qty" type="number" inputmode="numeric" value="1"><button onclick="bump(1)">+</button></div></div>
-      ${SCAN_OK ? '<button class="btn sec" style="margin:0;width:96px;flex:none;padding:15px 0" onclick="startScan()">Scan</button>' : ""}
-    </div>
+    ${SCAN_OK ? '<button class="btn sec" onclick="startScan()">Scan a label</button>' : ""}
+    <div class="f" style="margin-top:12px"><label>Quantity</label>
+      <div class="step"><button onclick="bump(-1)">−</button><input id="qty" type="number" inputmode="numeric" value="1"><button onclick="bump(1)">+</button></div></div>
     <button class="btn" onclick="addSale()">Add sale</button>
   </div>
 
