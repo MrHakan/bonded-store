@@ -12,6 +12,15 @@ on:
       apk:
         description: File name of the built APK
         value: ${{ jobs.apk.outputs.apk }}
+      tag:
+        description: Tag this build belongs to, empty for a branch build
+        value: ${{ jobs.apk.outputs.tag }}
+      channel:
+        description: rolling, version, or dev
+        value: ${{ jobs.apk.outputs.channel }}
+      title:
+        description: Release title for this build
+        value: ${{ jobs.apk.outputs.title }}
 
 jobs:
   apk:
@@ -19,6 +28,9 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.name }}
       apk: ${{ steps.apk.outputs.path }}
+      tag: ${{ steps.v.outputs.tag }}
+      channel: ${{ steps.v.outputs.channel }}
+      title: ${{ steps.v.outputs.title }}
     steps:
       - uses: actions/checkout@v4
 
@@ -38,27 +50,55 @@ jobs:
 
       # A called workflow sees the caller's event, so a tag, a published
       # release and a branch push are all still told apart here.
-      # v1.2.3 -> name 1.2.3, code 10203. versionCode must rise with every
-      # release, or Android refuses to install the newer APK over the older.
+      #
+      # Two release channels:
+      #   release   a tag that moves — always the newest build
+      #   v1.2.3    a fixed version, kept for when one is worth pinning
+      #
+      # versionCode is minutes since 2020 for BOTH, and that is deliberate.
+      # Android refuses an APK whose versionCode is lower than the installed
+      # one, so the two channels cannot each count on their own: a v1.2.3 at
+      # 10203 could never install over a rolling build at 3.5 million. A clock
+      # only ever goes forward, so any build is installable over any older one,
+      # whichever tag it came from.
       - name: Work out the version
         id: v
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           if [ -n "$RELEASE_TAG" ]; then
-            NAME="${RELEASE_TAG#v}"                 # published from the web UI
+            TAG="$RELEASE_TAG"                      # published from the web UI
           elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            NAME="${GITHUB_REF_NAME#v}"             # tag pushed from a terminal
+            TAG="${GITHUB_REF_NAME}"                # tag pushed from a terminal
           else
-            NAME="0.0.0-$(git rev-parse --short HEAD)"
+            TAG=""
           fi
-          CORE="${NAME%%-*}"
-          IFS=. read -r MAJ MIN PAT <<< "$CORE"
-          CODE=$(( ${MAJ:-0} * 10000 + ${MIN:-0} * 100 + ${PAT:-0} ))
-          if [ "$CODE" -lt 1 ]; then CODE=1; fi
-          echo "name=$NAME"  >> "$GITHUB_OUTPUT"
-          echo "code=$CODE"  >> "$GITHUB_OUTPUT"
-          echo "Version $NAME (versionCode $CODE)"
+
+          case "$TAG" in
+            "")       NAME="0.0.0-$(git rev-parse --short HEAD)"
+                      CHANNEL=dev ;;
+            release)  NAME="$(date -u +%Y.%m.%d)-$(git rev-parse --short HEAD)"
+                      CHANNEL=rolling ;;
+            v*)       NAME="${TAG#v}"
+                      CHANNEL=version ;;
+            *)        NAME="$TAG"
+                      CHANNEL=version ;;
+          esac
+
+          CODE=$(( ( $(date -u +%s) - 1577836800 ) / 60 ))
+
+          if [ "$CHANNEL" = "rolling" ]; then
+            TITLE="Bonded Store · latest ($NAME)"
+          else
+            TITLE="Bonded Store $NAME"
+          fi
+
+          echo "name=$NAME"       >> "$GITHUB_OUTPUT"
+          echo "code=$CODE"       >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "title=$TITLE"     >> "$GITHUB_OUTPUT"
+          echo "$CHANNEL: $NAME (versionCode $CODE), tag '$TAG'"
 
       # The signing key lives in repository secrets, never in the repository.
       # Without it the build still works, but falls back to the debug key.

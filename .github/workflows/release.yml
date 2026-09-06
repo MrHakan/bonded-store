@@ -1,16 +1,20 @@
-# Publishes a version as a GitHub release with the APK attached, reached either
-# way:
+# Publishes a release with the APK attached. Two channels:
 #
-#   git tag v1.2.3 && git push origin v1.2.3
-#   or: Releases -> Draft a new release -> new tag v1.2.3 -> Publish
+#   release   a tag that moves — move it and its release becomes the new build
+#             git tag -f release && git push -f origin release
 #
-# Both are covered because publishing from the web UI raises both events, and
-# publishing against a tag that already exists raises only the release one.
+#   v1.2.3    a fixed version, for a build worth pinning
+#             git tag v1.2.3 && git push origin v1.2.3
+#
+# Either can also be done from Releases -> Draft a new release. Both the tag
+# push and the release event are handled, because publishing from the web UI
+# raises both, and publishing against a tag that already exists raises only the
+# release one.
 name: Release
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["release", "v*"]
   release:
     types: [published]
   workflow_dispatch:
@@ -41,17 +45,15 @@ jobs:
         with:
           name: bonded-store-apk
 
-      # Run by hand against a branch instead of a tag, the build stamps
-      # 0.0.0-<sha>. Publishing that would put a junk release on the repo and,
-      # worse, a versionCode of 1 that no later release can install over.
+      # Run by hand against a branch rather than a tag there is nothing to
+      # publish to, and the build is stamped as a development one.
       - name: Refuse to publish a development build
         run: |
-          case "${{ needs.build.outputs.version }}" in
-            0.0.0-*)
-              echo "::error::Version is ${{ needs.build.outputs.version }} — this is a development build. Run this workflow on a version tag, or publish a release."
-              exit 1 ;;
-          esac
-          echo "Publishing ${{ needs.build.outputs.version }}"
+          if [ "${{ needs.build.outputs.channel }}" = "dev" ] || [ -z "${{ needs.build.outputs.tag }}" ]; then
+            echo "::error::This is a development build (${{ needs.build.outputs.version }}) with no tag. Run this workflow on the 'release' tag or a version tag."
+            exit 1
+          fi
+          echo "Publishing ${{ needs.build.outputs.version }} to tag '${{ needs.build.outputs.tag }}' (${{ needs.build.outputs.channel }})"
 
       - name: Check the APK arrived
         run: |
@@ -61,10 +63,13 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.build.outputs.version }}
-          name: Bonded Store ${{ needs.build.outputs.version }}
+          tag_name: ${{ needs.build.outputs.tag }}
+          name: ${{ needs.build.outputs.title }}
           files: ${{ needs.build.outputs.apk }}
-          generate_release_notes: true
+          make_latest: true
+          # A moving tag has no span to generate notes over — the same tag would
+          # be asked what changed since itself.
+          generate_release_notes: ${{ needs.build.outputs.channel == 'version' }}
           body: |
             **Install:** download `${{ needs.build.outputs.apk }}` onto the phone and open it.
             Android will ask you to allow installing from that source.
@@ -74,3 +79,5 @@ jobs:
 
             Android 7.0 or newer. Camera permission is used only for reading a
             product's QR label; the app has no internet permission.
+
+            Built from `${{ github.sha }}`.

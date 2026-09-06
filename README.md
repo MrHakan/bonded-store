@@ -144,25 +144,37 @@ pasted backup text. Both go through the Android share sheet.
 
 ## Releasing a new version
 
-Either way works — GitHub Actions builds the APK, publishes the release and
-attaches it.
+There are two channels, and both publish the APK the same way.
 
-From a terminal:
+**`release` — the tag that moves.** One link that is always the newest build.
+Move the tag and its release is rebuilt and re-attached:
 
 ```sh
-git tag v1.2.3
-git push origin v1.2.3
+git tag -f release && git push -f origin release
 ```
 
-Or from the browser, which needs no git at all: **Releases → Draft a new
-release → Choose a tag → type `v1.2.3` → Create new tag → Publish release.**
-The build starts on publish and attaches the APK to that release a couple of
-minutes later.
+**`v1.2.3` — a fixed version,** for a build worth keeping around to go back to:
 
-The tag sets the version: `v1.2.3` becomes versionName `1.2.3` and versionCode
-`10203` (`major×10000 + minor×100 + patch`). versionCode has to increase with
-every release or Android refuses to install the newer APK over the older one, so
-tag in order and never re-use a tag.
+```sh
+git tag v1.2.3 && git push origin v1.2.3
+```
+
+Either can also be done from the browser, which needs no git at all: **Releases →
+Draft a new release → Choose a tag → Publish release.** Or, on the `release`
+tag, **Actions → Release → Run workflow → Use workflow from: `release`**.
+
+The build stamps itself from the tag:
+
+| tag | versionName |
+|---|---|
+| `release` | `2026.09.06-d7c1ef1` — the date and the commit it came from |
+| `v1.2.3` | `1.2.3` |
+
+**versionCode is minutes since 2020 for both, and that is deliberate.** Android
+refuses an APK whose versionCode is lower than the installed one, so the two
+channels cannot each count on their own — a `v1.2.3` at 10203 could never
+install over a rolling build at 3.5 million. A clock only goes forward, so any
+build installs over any older one whichever tag it came from.
 
 Every ordinary push builds and checks an APK too — **Actions → Build APK →
 `bonded-store-apk`** — it is just not published.
@@ -176,7 +188,7 @@ The build itself lives in one place, `build.yml`, which both workflows call:
 ```
 build.yml     test, build, verify, upload   (called, never triggered on its own)
 android.yml   every push                    -> build.yml
-release.yml   a version tag or a release    -> build.yml, then attach the APK
+release.yml   the release tag or a version  -> build.yml, then attach the APK
 ```
 
 So a release is packaged by exactly the path CI proves. A check added to the
