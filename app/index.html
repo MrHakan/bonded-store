@@ -121,6 +121,9 @@ button.m{display:block;width:100%;text-align:left;padding:0}
 #sheet h2{font-size:18px;font-weight:700;margin-bottom:4px}
 #sheet .h-sub{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-bottom:16px}
 .f{margin-bottom:12px}
+.ok,.warn{font-family:var(--mono);font-size:11.5px;line-height:1.6;padding:10px 12px;border-radius:9px;margin-bottom:14px}
+.ok{background:rgba(38,209,119,.08);border:1px solid rgba(38,209,119,.3);color:var(--green)}
+.warn{background:rgba(255,176,0,.08);border:1px solid rgba(255,176,0,.3);color:var(--signal)}
 #toast{
   position:fixed;left:50%;bottom:calc(78px + var(--pad));transform:translate(-50%,14px);z-index:40;
   background:var(--deck);border:1px solid #27506b;border-radius:10px;padding:11px 17px;
@@ -434,28 +437,64 @@ const BLANK = {
   seq: { p: 0, i: 0 }
 };
 
+/* Where the ledger really lives.
+   The WebView's own storage is a cache the system is allowed to clear — clear
+   the app's data, run low on space, reinstall, and a month's takings are gone.
+   So on Android the record is a file the shell keeps for us, and localStorage
+   becomes the mirror it always should have been. In a desktop browser there is
+   no shell, so localStorage is all there is and the app says so. */
+const FILE_STORE = !!(window.Android && window.Android.loadState && window.Android.saveState);
+
+/* Declared before load() runs — it assigns `migrated`, and a `let` cannot be
+   touched before its declaration is reached. */
+let lastSaveOk = true, migrated = false;
+
 let S = load();
 let view = "sell";
 let sellPerson = "", sellItem = "", reportMonth = "", stockQuery = "";
 
-function load() {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) {
-      const o = JSON.parse(raw);
-      return Object.assign(JSON.parse(JSON.stringify(BLANK)), o);
-    }
-  } catch (e) { /* corrupt or blocked storage — start clean rather than die */ }
-  return JSON.parse(JSON.stringify(BLANK));
+function readJSON(raw) {
+  if (!raw) return null;
+  try { const o = JSON.parse(raw); return (o && typeof o === "object" && !Array.isArray(o)) ? o : null; }
+  catch (e) { return null; }
 }
+function fill(o) { return Object.assign(JSON.parse(JSON.stringify(BLANK)), o); }
+function readLocal() { try { return readJSON(localStorage.getItem(KEY)); } catch (e) { return null; } }
+
+function load() {
+  const local = readLocal();
+  if (!FILE_STORE) return local ? fill(local) : fill({});
+
+  let fromFile = null;
+  try { fromFile = readJSON(Android.loadState()); } catch (e) { /* treated as no file */ }
+
+  if (fromFile) return fill(fromFile);          // the file is the record; it wins
+  if (local) { migrated = true; return fill(local); }  // first run on this version
+  return fill({});
+}
+
 let saveTimer = null;
 function save() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try { localStorage.setItem(KEY, JSON.stringify(S)); }
-    catch (e) { toast("Could not save — storage full?"); }
-  }, 120);
+  saveTimer = setTimeout(writeNow, 120);
 }
+/* Write the file first — it is the one that has to be right — then the mirror. */
+function writeNow() {
+  clearTimeout(saveTimer); saveTimer = null;
+  const json = JSON.stringify(S);
+  let ok = true;
+  if (FILE_STORE) {
+    try { ok = Android.saveState(json) !== false; } catch (e) { ok = false; }
+  }
+  try { localStorage.setItem(KEY, json); } catch (e) { if (!FILE_STORE) ok = false; }
+  if (!ok && lastSaveOk) toast("Could not save — take a backup");
+  lastSaveOk = ok;
+}
+/* A debounced save that never ran is a sale that never happened. Flush before
+   the app goes away — Android kills a backgrounded WebView without warning. */
+function flush() { if (saveTimer) writeNow(); }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
+window.addEventListener("pagehide", flush);
 
 /* ============================================================ HELPERS */
 const $ = id => document.getElementById(id);
@@ -1022,10 +1061,23 @@ function shareCSV() {
   out.push(["Stock worth now", "", "", "", "", "", "", "", stockWorth().toFixed(2)]);
   saveFile("bonded-store-" + m + ".csv", out.map(r => r.map(csvCell).join(",")).join("\n"), "text/csv");
 }
+/* Say plainly where the ledger is kept. On a phone it is a file the app owns
+   and rolls backups of; in a browser it is only that browser's storage. */
+function storageLine() {
+  if (!FILE_STORE) {
+    return `<div class="warn">Kept in this browser's storage only.<br>Save a backup file regularly.</div>`;
+  }
+  let info = {};
+  try { info = JSON.parse(Android.storageInfo() || "{}"); } catch (e) {}
+  const when = info.savedAt ? utcStamp(new Date(info.savedAt).toISOString()) : "—";
+  return `<div class="ok">Kept in the app's own file · last written ${when}<br>
+    ${(info.bytes || 0).toLocaleString("en-US")} bytes · ${info.backups || 0} rolling backups</div>`;
+}
 function dataSheet() {
   sheet(`
     <h2>Backup / restore</h2>
     <div class="h-sub">${S.items.length} products · ${S.people.length} people · ${S.sales.length} sales</div>
+    ${storageLine()}
     <button class="btn" onclick="backup()">Save a backup file</button>
     <div class="f" style="margin-top:18px"><label>Restore — paste a backup here</label>
       <textarea class="in" id="restoreBox" rows="4" placeholder='{"v":1,...}' style="font-family:var(--mono);font-size:12px"></textarea></div>
@@ -1099,6 +1151,8 @@ function renderSoft() {
 document.querySelectorAll("#nav button").forEach(b => b.onclick = () => go(b.dataset.v));
 document.addEventListener("keydown", e => { if (e.key === "Escape") { closeSheet(); stopScan(); } });
 /* Android back button: close what is open before leaving the app. */
+if (migrated) { writeNow(); }
+
 window.addEventListener("bs-back", () => {
   if ($("scan").classList.contains("open")) { stopScan(); return; }
   if ($("sheet").classList.contains("open")) { closeSheet(); return; }

@@ -66,4 +66,7 @@ tasks.named("preBuild") { dependsOn "copyWebApp" }
 dependencies {
     implementation "androidx.webkit:webkit:1.11.0"
     implementation "androidx.core:core:1.13.1"
+
+    // Ledger keeps no Android imports so its tests run on a plain JVM.
+    testImplementation "junit:junit:4.13.2"
 }

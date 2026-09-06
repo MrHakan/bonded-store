@@ -76,6 +76,12 @@ jobs:
             echo "::warning::No ANDROID_KEYSTORE_BASE64 secret — falling back to the debug key. APKs signed this way cannot be installed over each other, so updating means uninstalling, which erases the store's ledger. See the README."
           fi
 
+      # The ledger is the part that must not lose data, so it is checked before
+      # anything is packaged.
+      - name: Test the ledger
+        working-directory: android
+        run: gradle --no-daemon testDebugUnitTest
+
       - name: Build release APK
         working-directory: android
         env:

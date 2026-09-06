@@ -77,6 +77,34 @@ cash in hand = cash carried in + charged to crew − spent restocking
 Master entertainment is stock issued on the Master's account, so it is reported
 separately and never counted as cash taken.
 
+## Where the data lives
+
+On Android the record is a file the app owns:
+
+```
+<app files>/data/state.json          the ledger — written whole, atomically
+<app files>/data/backups/            a rolling copy, at most one per 10 min, 20 kept
+```
+
+Each save writes a temporary file, flushes it to disk, then renames it over
+`state.json`. A rename either replaces the file completely or does nothing, so a
+crash or a flat battery can cost the newest edit but never the ledger.
+
+The page's own `localStorage` is kept as a mirror, not the record. That
+distinction matters: WebView storage is a cache the system is allowed to clear —
+clear the app's data, run low on space, reinstall, and it is gone. On startup the
+file wins if it exists; if it does not but browser storage does, that data is
+lifted into the file straight away, so upgrading from an older build loses
+nothing. A pending save is flushed when the app goes to the background, because
+Android kills a backgrounded WebView without warning.
+
+Opened in a desktop browser there is no file — `localStorage` is all there is,
+and **Backup / restore** says so plainly. Take backups there.
+
+`Ledger.java` deliberately has no Android imports so it can be tested on a plain
+JVM; `gradle test` runs those 13 tests, and CI runs them before it packages
+anything.
+
 ## Getting data off the phone
 
 **Export month as CSV** writes the month's lines — UTC date, UTC time, account,

@@ -28,16 +28,19 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * A shell around the store. All of the app is the page in assets/www; this class
- * only gives it the three things a browser tab cannot do on a phone: serve
- * itself from a real origin, print, and hand a file to another app.
+ * only gives it what a browser tab cannot do on a phone: serve itself from a
+ * real origin, keep the ledger in a real file, print, and hand a file to
+ * another app.
  */
 public class MainActivity extends android.app.Activity {
 
     private WebView web;
+    private Ledger ledger;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ledger = new Ledger(getFilesDir());
 
         // Assets are served over https://appassets.androidplatform.net rather than
         // file://. That gives the page a secure origin, which is what localStorage
@@ -155,6 +158,25 @@ public class MainActivity extends android.app.Activity {
 
         @JavascriptInterface
         public void exitApp() { runOnUiThread(MainActivity.this::finish); }
+
+        /* ---------- the ledger ----------
+           WebView storage is a cache the system may clear; the month's takings
+           cannot live only there, so Ledger keeps data/state.json as the real
+           record and the page's own storage becomes a mirror of it. These run
+           on a binder thread, not the UI thread, and the file is small, so the
+           page can call them straight through. */
+
+        /** The stored ledger, or "" when there is none yet. */
+        @JavascriptInterface
+        public String loadState() { return ledger.load(); }
+
+        /** Write the ledger. Returns false if it did not reach the disk. */
+        @JavascriptInterface
+        public boolean saveState(String json) { return ledger.save(json); }
+
+        /** Where the ledger lives and when it was last written. */
+        @JavascriptInterface
+        public String storageInfo() { return ledger.info(); }
     }
 
     /** Keep a filename from the page inside the exports folder. */
