@@ -471,11 +471,17 @@ const monthOf = ts => String(ts).slice(0, 7);                       /* "2026-09"
 const thisMonth = () => nowUTC().slice(0, 7);
 const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 function monthName(m) { const [y, mm] = m.split("-"); return MON[+mm - 1] + " " + y; }
+/* Zero-pad without String.padStart: Android 7's factory WebView is Chrome 51,
+   which predates it, and this runs on every line of the report. */
+function pad(n, width) {
+  let s = String(n);
+  while (s.length < (width || 2)) s = "0" + s;
+  return s;
+}
 function utcStamp(ts) {
   const d = new Date(ts);
   if (isNaN(d.getTime())) return "";
-  const p = n => String(n).padStart(2, "0");
-  return p(d.getUTCDate()) + " " + MON[d.getUTCMonth()] + " " + p(d.getUTCHours()) + ":" + p(d.getUTCMinutes()) + "z";
+  return pad(d.getUTCDate()) + " " + MON[d.getUTCMonth()] + " " + pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + "z";
 }
 
 function toast(msg) {
@@ -761,7 +767,7 @@ function saveItem(id) {
     Object.assign(item(id), { name, code, price, qty, unit });
   } else {
     S.seq.i++;
-    S.items.push({ id: uid("I"), code: code || ("P" + String(S.seq.i).padStart(3, "0")), name, price, qty, unit });
+    S.items.push({ id: uid("I"), code: code || ("P" + pad(S.seq.i, 3)), name, price, qty, unit });
   }
   save(); closeSheet(); render(); toast("Saved");
 }
