@@ -86,13 +86,20 @@ pasted backup text. Both go through the Android share sheet.
 
 ## Releasing a new version
 
-Push a version tag and GitHub Actions builds the APK, publishes the release and
-attaches it:
+Either way works — GitHub Actions builds the APK, publishes the release and
+attaches it.
+
+From a terminal:
 
 ```sh
 git tag v1.2.3
 git push origin v1.2.3
 ```
+
+Or from the browser, which needs no git at all: **Releases → Draft a new
+release → Choose a tag → type `v1.2.3` → Create new tag → Publish release.**
+The build starts on publish and attaches the APK to that release a couple of
+minutes later.
 
 The tag sets the version: `v1.2.3` becomes versionName `1.2.3` and versionCode
 `10203` (`major×10000 + minor×100 + patch`). versionCode has to increase with

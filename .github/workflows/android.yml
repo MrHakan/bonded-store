@@ -1,14 +1,19 @@
 name: Build APK
 
-# Every push builds and checks the APK. Pushing a version tag also publishes
-# it as a GitHub release:
+# Every push builds and checks the APK. A version release also publishes it,
+# reached either way:
 #
-#     git tag v1.2.3 && git push origin v1.2.3
+#   git tag v1.2.3 && git push origin v1.2.3
+#   or: Releases -> Draft a new release -> new tag v1.2.3 -> Publish
 #
+# Both are covered, because creating the tag from the web UI does not
+# reliably raise the same event as pushing one from a terminal.
 on:
   push:
     branches: ["**"]
     tags: ["v*"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -38,9 +43,13 @@ jobs:
       # release, or Android refuses to install the newer APK over the older.
       - name: Work out the version
         id: v
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            NAME="${GITHUB_REF_NAME#v}"
+          if [ -n "$RELEASE_TAG" ]; then
+            NAME="${RELEASE_TAG#v}"                 # published from the web UI
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            NAME="${GITHUB_REF_NAME#v}"             # tag pushed from a terminal
           else
             NAME="0.0.0-$(git rev-parse --short HEAD)"
           fi
@@ -110,9 +119,10 @@ jobs:
           path: ${{ steps.apk.outputs.path }}
 
       - name: Publish the release
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' || github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.v.outputs.name }}
           name: Bonded Store ${{ steps.v.outputs.name }}
           files: ${{ steps.apk.outputs.path }}
           generate_release_notes: true
