@@ -41,6 +41,18 @@ jobs:
         with:
           name: bonded-store-apk
 
+      # Run by hand against a branch instead of a tag, the build stamps
+      # 0.0.0-<sha>. Publishing that would put a junk release on the repo and,
+      # worse, a versionCode of 1 that no later release can install over.
+      - name: Refuse to publish a development build
+        run: |
+          case "${{ needs.build.outputs.version }}" in
+            0.0.0-*)
+              echo "::error::Version is ${{ needs.build.outputs.version }} — this is a development build. Run this workflow on a version tag, or publish a release."
+              exit 1 ;;
+          esac
+          echo "Publishing ${{ needs.build.outputs.version }}"
+
       - name: Check the APK arrived
         run: |
           test -f "${{ needs.build.outputs.apk }}" \
