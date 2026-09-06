@@ -1,0 +1,64 @@
+# Publishes a version as a GitHub release with the APK attached, reached either
+# way:
+#
+#   git tag v1.2.3 && git push origin v1.2.3
+#   or: Releases -> Draft a new release -> new tag v1.2.3 -> Publish
+#
+# Both are covered because publishing from the web UI raises both events, and
+# publishing against a tag that already exists raises only the release one.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write          # needed to create the release and attach the APK
+
+# The two events above can fire together — v1.0.0 set off both, six seconds
+# apart. Serialise rather than cancel: the publish step deletes an existing
+# asset before uploading, so a run cancelled midway could remove the APK and
+# never replace it.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # The same build CI runs, so a release is never packaged by a second,
+  # less-checked path.
+  build:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: bonded-store-apk
+
+      - name: Check the APK arrived
+        run: |
+          test -f "${{ needs.build.outputs.apk }}" \
+            || { echo "::error::${{ needs.build.outputs.apk }} is missing from the build"; exit 1; }
+          ls -l "${{ needs.build.outputs.apk }}"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.build.outputs.version }}
+          name: Bonded Store ${{ needs.build.outputs.version }}
+          files: ${{ needs.build.outputs.apk }}
+          generate_release_notes: true
+          body: |
+            **Install:** download `${{ needs.build.outputs.apk }}` onto the phone and open it.
+            Android will ask you to allow installing from that source.
+
+            Install it *over* the previous version — uninstalling erases the
+            store's ledger.
+
+            Android 7.0 or newer. Camera permission is used only for reading a
+            product's QR label; the app has no internet permission.

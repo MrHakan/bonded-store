@@ -171,6 +171,17 @@ Each build verifies that the page inside the APK is byte-for-byte `app/index.htm
 that the APK is signed, and that its version matches the tag. Any of those
 failing fails the build.
 
+The build itself lives in one place, `build.yml`, which both workflows call:
+
+```
+build.yml     test, build, verify, upload   (called, never triggered on its own)
+android.yml   every push                    -> build.yml
+release.yml   a version tag or a release    -> build.yml, then attach the APK
+```
+
+So a release is packaged by exactly the path CI proves. A check added to the
+build cannot be missing from the release.
+
 ### Set up the signing key first — once
 
 **An APK can only be installed over one signed with the same key.** Without a
