@@ -19,6 +19,16 @@ on:
 permissions:
   contents: write          # needed to create the release on a tag
 
+# Publishing v1.0.0 from the web UI raised BOTH the tag push and the release,
+# so two runs built the same commit and uploaded the same asset six seconds
+# apart. It worked, but only by luck: overlapping uploads would have failed one
+# of them and put a red cross on a release that was fine. Serialise instead of
+# cancelling — a run cancelled midway through publishing could delete the asset
+# and never replace it.
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   apk:
     runs-on: ubuntu-latest
