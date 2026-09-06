@@ -121,6 +121,8 @@ button.m{display:block;width:100%;text-align:left;padding:0}
 #sheet h2{font-size:18px;font-weight:700;margin-bottom:4px}
 #sheet .h-sub{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-bottom:16px}
 .f{margin-bottom:12px}
+.hint{font-family:var(--mono);font-size:11px;line-height:1.6;color:var(--dim);margin-top:10px}
+.hint b{color:var(--fog)}
 .ok,.warn{font-family:var(--mono);font-size:11.5px;line-height:1.6;padding:10px 12px;border-radius:9px;margin-bottom:14px}
 .ok{background:rgba(38,209,119,.08);border:1px solid rgba(38,209,119,.3);color:var(--green)}
 .warn{background:rgba(255,176,0,.08);border:1px solid rgba(255,176,0,.3);color:var(--signal)}
@@ -969,8 +971,14 @@ function vReport() {
       ${accRow(rec.closed ? "Item worth at close" : "Item worth now", rec.closed ? rec.closeWorth : stockWorth(), true)}
     </div>
     <button class="btn sec" onclick="shareCSV()">Export month as CSV</button>
+    <button class="btn sec" onclick="slopxSheet()">Send to Crew Data Master</button>
     <button class="btn sec" onclick="dataSheet()">Backup / restore</button>
   </div>`;
+}
+/* Same row, plain number — accRow money-formats, and these are line counts. */
+function numRow(k, v, strong) {
+  return `<div class="item"><div class="m"><b style="font-weight:${strong ? 700 : 400};font-size:13.5px">${esc(k)}</b></div>
+    <div class="amt" style="color:${strong ? "var(--green)" : "var(--fog)"}">${v}</div></div>`;
 }
 function accRow(k, v, strong) {
   return `<div class="item"><div class="m"><b style="font-weight:${strong ? 700 : 400};font-size:13.5px">${esc(k)}</b></div>
@@ -1073,6 +1081,138 @@ function storageLine() {
   return `<div class="ok">Kept in the app's own file · last written ${when}<br>
     ${(info.bytes || 0).toLocaleString("en-US")} bytes · ${info.backups || 0} rolling backups</div>`;
 }
+/* ============================================================ CREW DATA MASTER
+   The ship PC's slop chest lives in CREW DATA MASTER, and its "Import phone
+   entries" reads the slopx payload that slop-mobile.html produces. Emitting the
+   same shape lets a month sold here land in the master system that prints the
+   deductions sheet and the slop chest report.
+
+   Its merge is ADDITIVE — importing the same lines twice charges the crew
+   twice. So each line records when it was sent, and by default only lines that
+   have never been sent go out. Sending the whole month again is possible, but
+   it has to be asked for.
+
+   Shape (v2, matching slop-mobile.html):
+     entries : { crewNo: [ [product, qty, tsISO], ... ] }   price resolved by name
+     ent     : [ [item, qty, unitPrice, note, tsISO], ... ] price carried
+     products: [ [name, unit, price, "", "", code], ... ]   index 5 is the SKU
+*/
+function slopxLines(m, onlyNew) {
+  return salesIn(m).filter(s => !onlyNew || !s.exp).sort((a, b) => a.ts.localeCompare(b.ts));
+}
+/* Crew are keyed by number on the ship PC. A person with no number cannot be
+   matched there, so their lines are held back rather than sent to a crew
+   member who does not exist. */
+function slopxUnnumbered(rows) {
+  const bad = new Set();
+  rows.forEach(s => {
+    if (s.pid === ENT) return;
+    const p = person(s.pid);
+    if (!p || !String(p.no || "").trim()) bad.add(s.pname || "—");
+  });
+  return [...bad];
+}
+/* The lines that will actually go. A crew member with no number is held back,
+   so their line must NOT be stamped as sent — give them a number later and it
+   still goes out. Payload and stamp are built from this same list, so the two
+   can never disagree about what was sent. */
+function slopxSendable(m, onlyNew) {
+  return slopxLines(m, onlyNew).filter(s => {
+    if (s.pid === ENT) return true;
+    const p = person(s.pid);
+    return !!(p && String(p.no || "").trim());
+  });
+}
+function slopxPayload(m, onlyNew) {
+  const rows = slopxSendable(m, onlyNew);
+  const entries = {}, ent = [];
+  rows.forEach(s => {
+    if (s.pid === ENT) {
+      /* The format keeps a note field; say where a moved line came from. */
+      ent.push([s.iname, s.qty, r2(s.price), s.movedFrom ? "from " + s.movedFrom : "", s.ts]);
+      return;
+    }
+    const no = String(person(s.pid).no).trim();
+    (entries[no] = entries[no] || []).push([s.iname, s.qty, s.ts]);
+  });
+  return {
+    t: "slopx", v: 2, ts: Date.now(),
+    vessel: S.store.name || "BONDED STORE",
+    entries: entries, ent: ent,
+    products: S.items.filter(i => i.name)
+                     .map(i => [i.name, (i.unit || "pcs").toUpperCase(), r2(i.price), "", "", i.code || ""])
+  };
+}
+/* Exactly the encoding the ship PC decodes with decodeURIComponent(escape(atob(x))). */
+function slopxCode(payload) { return btoa(unescape(encodeURIComponent(JSON.stringify(payload)))); }
+
+function slopxSheet(whole) {
+  const m = reportMonth || thisMonth();
+  const onlyNew = !whole;
+  const rows = slopxSendable(m, onlyNew);
+  const sent = salesIn(m).filter(s => s.exp).length;
+  const held = slopxUnnumbered(slopxLines(m, onlyNew));
+  const crew = rows.filter(s => s.pid !== ENT), ents = rows.filter(s => s.pid === ENT);
+
+  sheet(`
+    <h2>Send to Crew Data Master</h2>
+    <div class="h-sub">${monthName(m)} · slop chest phone export</div>
+
+    <div class="f"><label>Vessel name (shown on the export)</label>
+      <input class="in" id="vsl" value="${esc(S.store.name || "")}" onchange="S.store.name=this.value.trim();save()"></div>
+
+    <div class="list" style="margin:14px 0 4px">
+      ${numRow(onlyNew ? "Lines not sent yet" : "Lines in the whole month", rows.length, true)}
+      ${numRow("· crew purchases", crew.length)}
+      ${numRow("· master entertainment", ents.length)}
+      ${numRow("Already sent before", sent)}
+    </div>
+
+    ${held.length ? `<div class="warn">Held back — no crew number: ${esc(held.join(", "))}.<br>
+      Give them a number on the People screen, or the ship PC cannot match them.</div>` : ""}
+
+    ${!onlyNew && sent ? `<div class="warn">Sending the whole month. The ship PC adds what it
+      receives, so the ${sent} line${sent === 1 ? "" : "s"} already sent will be charged twice.</div>` : ""}
+
+    ${rows.length ? `
+      <button class="btn" onclick="slopxSend('file',${!!whole})">Share as file</button>
+      <button class="btn sec" onclick="slopxSend('code',${!!whole})">Copy export code</button>
+      <textarea class="in" id="slopxOut" readonly rows="3" hidden
+        style="font-family:var(--mono);font-size:11px;margin-top:12px"></textarea>
+      <div class="hint">On the ship PC: <b>Slop Chest · Sales</b> → <b>Import phone entries</b> →
+        paste the code, or load the file.</div>`
+    : `<div class="ok">Nothing new to send — every line this month has already gone.</div>`}
+
+    ${onlyNew
+      ? `<button class="btn sec" onclick="slopxSheet(true)">Send the whole month instead…</button>`
+      : `<button class="btn sec" onclick="slopxSheet(false)">Only unsent lines</button>`}
+    <button class="btn sec" onclick="closeSheet()">Close</button>`);
+}
+/* Mark what went out, so the next send does not repeat it. */
+function slopxMarkSent(m, onlyNew) {
+  const at = nowUTC();
+  slopxSendable(m, onlyNew).forEach(s => { s.exp = at; });
+  save();
+}
+function slopxSend(how, whole) {
+  const m = reportMonth || thisMonth(), onlyNew = !whole;
+  const rows = slopxSendable(m, onlyNew);
+  if (!rows.length) { toast("Nothing to send"); return; }
+  const payload = slopxPayload(m, onlyNew);
+
+  if (how === "file") {
+    saveFile("slop_phone_" + m + ".json", JSON.stringify(payload, null, 2), "application/json");
+  } else {
+    const box = $("slopxOut");
+    box.hidden = false; box.value = slopxCode(payload);
+    box.focus(); box.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    if (navigator.clipboard) navigator.clipboard.writeText(box.value).catch(() => {});
+    toast("Code copied");
+  }
+  slopxMarkSent(m, onlyNew);
+}
+
 function dataSheet() {
   sheet(`
     <h2>Backup / restore</h2>

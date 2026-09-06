@@ -105,6 +105,36 @@ and **Backup / restore** says so plainly. Take backups there.
 JVM; `gradle test` runs those 13 tests, and CI runs them before it packages
 anything.
 
+## Sending a month to CREW DATA MASTER
+
+The ship PC's slop chest lives in **CREW DATA MASTER**, and it is what prints
+the deductions sheet and the slop chest report. **Report → Send to Crew Data
+Master** hands it a month in the same `slopx` payload `slop-mobile.html`
+produces, so on the ship PC it goes in through **Slop Chest · Sales → Import
+phone entries** — paste the code, or load the file.
+
+What travels:
+
+| here | there |
+|---|---|
+| crew purchase | `entries[<crew no>] = [product, qty, UTC time]` |
+| Master Entertainment | `ent = [item, qty, price, note, UTC time]` |
+| a moved line | its note says where it came from |
+| the product list | name, unit, price, and the QR code as the SKU |
+
+**People are matched by crew number.** Anyone without one is held back rather
+than filed under a number that does not exist, and the screen names them. Give
+them a number on the People screen and their lines go with the next send.
+
+**The ship PC adds what it receives, it does not reconcile.** Sending the same
+lines twice charges the crew twice. So every line records when it was sent and
+only unsent lines go by default; sending a whole month again is possible, behind
+a warning that says how many lines would be charged a second time.
+
+Prices for products the ship PC already knows come from *its* catalog, not this
+one — the format carries no price on crew lines. Master entertainment lines do
+carry their price.
+
 ## Getting data off the phone
 
 **Export month as CSV** writes the month's lines — UTC date, UTC time, account,
